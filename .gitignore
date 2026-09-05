@@ -1,0 +1,39 @@
+# Python caches and test artifacts
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environments and editor state
+.env
+.env.*
+.venv/
+venv/
+.idea/
+.vscode/
+*~
+
+# Generated datasets, checkpoints, and raw experiment output
+/datasets/
+/checkpoints/
+/logs/
+**/run_logs/
+*.log
+*.ckpt
+*.pt
+*.pth
+
+# Local process state
+*.pid
+nohup.out
+
+# Large reference/archive files kept outside Git history
+*.pdf
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# OS metadata
+.DS_Store
