@@ -41,19 +41,30 @@ Implemented experimental extensions include:
 - generator shape normalization with local speed restoration;
 - diagnostics for generator fit, map residuals, basis staleness, correction stability, injection ratio, and cluster assignment.
 
-Status: experimental and awaiting research review of the latest 11-dataset evidence.
+Status: engineering-complete for the current specification and experimentally stable, but the transfer mechanism remains unvalidated.
 
 ## Established evidence
 
 - Official 11-dataset baseline results are stored in `backbone_functional_dynamics_stable/BASELINE_RESULTS.json`.
 - The controlled synthetic `feature_shift` baseline reaches `88.68 +/- 2.68%` paired test accuracy at seed 42 and 100 rounds; see `backbone_functional_dynamics_stable/SYNTHETIC_BENCHMARK.md`.
-- A seed-42 multi-prototype Functional Dynamics matrix has results for all 11 real datasets across two run directories. Accuracy/AUC changes are mixed and modest overall; see `.collab/EXPERIMENTS.md` entry E003.
+- A seed-42 multi-prototype Functional Dynamics matrix has complete results for all 11 real datasets across two run directories. Seven point estimates improve and four decline; mean and median deltas are `+0.3366` and `+0.0302` percentage points. Only four gains exceed `+0.5` points. See `.collab/EXPERIMENTS.md` entry E003.
+- Current verification passes 18 unit tests plus all fast baseline invariants.
+
+## Current empirical interpretation
+
+- Functional Map optimization is finite, reduces its objective, and stays below the map condition limit.
+- Consecutive trajectory bases are stable, but local generator fit error varies widely across datasets.
+- Injection remains small at roughly 0.57%-1.32% of the native field in steady state.
+- The dissipative spectral cap binds on most datasets, so raw correction magnitude is largely removed before injection.
+- Prototype assignments never switch. With the configured margin of 1.0 and the current relative-improvement rule, the experiment behaves as fixed bootstrap clustering rather than adaptive multi-regime tracking.
+- The single-seed gains are not sufficient to attribute improvement to cross-client dynamics transfer.
 
 ## Current open problems
 
-1. Determine whether the modest, nonuniform gains are explained by useful dynamics transfer, weak injection, unstable alignment, or prototype assignments.
-2. Analyze the existing Functional Dynamics diagnostics rather than relying only on final accuracy/AUC.
-3. Define matched controls and ablations that isolate the claimed mechanism.
-4. Convert the research conclusion into one bounded, implementation-ready next task.
+1. Decide whether adaptive prototype switching is part of the intended mechanism; if so, replace the effectively frozen margin with a falsifiable setting.
+2. Separate the effects of cross-client transfer, fixed clustering, Functional Map regularization, dissipative projection, and the small injection coefficient.
+3. Define local-only, shuffled/wrong-prototype, single-prototype, and module-off matched controls.
+4. Use controlled feature/structure synthetic regimes before interpreting real-dataset accuracy changes mechanistically.
+5. Convert the research conclusion into one bounded, implementation-ready next task.
 
 There is no active source-code task until the research agent changes `.collab/NEXT_TASK.md` to `READY_FOR_IMPLEMENTATION`.

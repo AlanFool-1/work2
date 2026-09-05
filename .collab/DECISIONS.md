@@ -47,7 +47,7 @@ Treat the current multi-prototype Functional Dynamics implementation as a candid
 
 Reason:
 
-The initial seed-42 11-dataset matrix shows modest, nonuniform changes and lacks the matched controls needed to establish mechanism validity.
+The seed-42 11-dataset matrix shows modest, nonuniform changes and lacks the matched controls needed to establish mechanism validity. Diagnostics also show zero prototype switches under margin 1.0, small effective injection, and frequent spectral clipping.
 
 Status: Under review by handoff R001.
 
