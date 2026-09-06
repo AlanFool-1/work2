@@ -1,4 +1,6 @@
 study_id: response-operator-selection-r010
+status: superseded
+superseded_by: functional-intertwining-action-constraints-r011
 claim: "Under a matched rank and communication budget, a low-rank finite-horizon causal response operator identifies receiver-missing dynamical modes and predicts realized receiver benefit more reliably than autonomous-generator, affine, and delay-AR proxies."
 stage: design
 code:

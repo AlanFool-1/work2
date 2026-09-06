@@ -2,6 +2,34 @@
 
 Updated: 2026-09-06 UTC
 
+## E017 - Preregistered Functional Map action-constraint pilot
+
+Date: 2026-09-06 UTC. Study design only; no new numeric experiment or graph
+training was run.
+
+R011 is specified in `.collab/FUNCTIONAL_INTERTWINING_DYNAMICS.md` and
+preregistered in `.collab/functional_intertwining_pilot.yaml`. It tests whether
+a Functional Map can transport finite-horizon action equations between
+client-local function spaces and whether an unsatisfied transported equation
+can be learned by the receiver through ordinary action-pair distillation.
+
+The controlled system includes a known ground-truth map and three action
+classes: already satisfied, transferable missing, and task harmful. Controls
+include descriptor-only learned, ground-truth, wrong and identity maps;
+source/time shuffle; repeated constraints; matched local-only; the old
+canonical prototype pullback; and R010 orthogonal-mode transfer. Maps are fit
+without the held-out action probes/horizons used to measure the commutation
+defect.
+
+The claim advances only if learned maps generalize and are cycle-consistent,
+the held-out defect distinguishes the three action classes, receiver
+distillation lowers both defect and task loss for transferable actions, and
+wrong/shuffled/harmful controls do not reproduce the benefit. The pilot must
+also demonstrate lower cost than the full response-Jacobian path.
+
+Status: preregistered, not run. Production aggregation and graph training
+remain deferred.
+
 ## E016 - Preregistered low-dimensional dynamics operator selection
 
 Date: 2026-09-06 UTC. Study design only; no new numeric experiment or model
@@ -23,10 +51,9 @@ raw-response, and no-flow forks. The study is designed to reject proxies that
 fit their own trajectory but cannot identify or transfer receiver-missing
 dynamical capability.
 
-No proxy is selected by evidence yet. The low-rank causal response operator is
-the leading hypothesis because it has shared input-output semantics and admits
-receiver-specific subspace innovation. Production source changes and the
-11-dataset matrix remain deferred.
+No proxy was selected by evidence. D022/R011 supersedes the orthogonal
+response-mode definition. Finite-time response measurement remains a useful
+diagnostic and the raw-response upper bound remains a possible audit.
 
 ## E015 - Retrospective early-to-late flow-proxy analysis
 

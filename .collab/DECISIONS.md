@@ -2,6 +2,42 @@
 
 Updated: 2026-09-06 UTC
 
+## D022 - Replace orthogonal mode transfer with functional action constraints
+
+Decision:
+
+Reject R010's definition of complementarity as a source response mode lying in
+the orthogonal complement of a receiver response subspace. Orthogonal novelty
+is representation-dependent and does not establish that the receiver lacks a
+learnable dynamical capability. It also makes the existing Functional Map
+irrelevant once all response coordinates are assumed to be shared.
+
+Use Functional Maps as the central transport between client-local function
+spaces. A source sends a small set of finite-horizon action pairs. The same map
+transports the input function and its evolved output to the receiver. Define
+the knowledge defect by failure of the transported dynamics diagram to
+commute: evolve-after-transport differs from transport-after-evolve.
+
+Treat a source action as complementary only if the map is independently
+validated, the held-out commutation defect is nonzero, ordinary receiver
+backprop can reduce it, and the induced update is compatible with the local
+task. Multiple clients contribute a set of dynamical equations. The server
+routes and checks map-network consistency; it does not average models,
+operators, prototypes, or orthogonal modes.
+
+Engineering consequence:
+
+Use periodic low-dimensional action sketches and standard distillation. Remove
+the full online response Jacobian, response SVD, per-receiver orthogonal
+subspace search, and per-round matched local-only fork. Keep matched local-only
+only as an offline causal audit. Estimate Functional Maps on descriptor/cycle
+data and evaluate dynamics defects on held-out probes or horizons to avoid a
+circular commutativity fit.
+
+Status: Active research design; R011 `NEEDS_RESEARCH`. R010/D021 remains a
+historical candidate and its finite-time response measurements may be reused as
+diagnostics.
+
 ## D021 - Select a response operator before testing knowledge-flow exhaustion
 
 Decision:
@@ -12,7 +48,7 @@ from optimization, scaling, fixed targets, or clipping. Defer R009's direct
 marginal-gain exhaustion experiment until a low-dimensional local dynamics
 proxy passes an explicit representation gate.
 
-Use a low-rank finite-horizon causal response operator as the leading candidate.
+D021 selected a low-rank finite-horizon causal response operator as its leading candidate.
 It maps shared port/time perturbations to shared task-observation/time responses
 along the real local ODE-GNN. Define cross-client complementarity as source
 operator modes outside a receiver's current response-operator subspace. Compose
@@ -35,8 +71,8 @@ innovation supplies that asymmetric test and shrinks when the receiver absorbs
 the mode. A global distance or mean cannot distinguish novelty from redundancy,
 task irrelevance, or local infeasibility.
 
-Status: Active research candidate; R010 `NEEDS_RESEARCH`. No production
-aggregator or large training run is authorized by this decision.
+Status: Superseded by D022/R011 because orthogonal operator novelty did not
+define functional complementarity and bypassed Functional Map transport.
 
 ## D020 - Define equilibrium by exhaustion of external learnable gain
 

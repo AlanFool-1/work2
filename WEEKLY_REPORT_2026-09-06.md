@@ -2,7 +2,7 @@
 
 日期：2026-09-06 UTC
 
-状态：学习过程思想已形成；当前研究瓶颈转为低维动力学代理选择，尚未进入完整知识流实验。
+状态：学习过程思想已形成；算法骨架修正为 Functional Map 运输下的动力学作用方程补全，尚待受控实验验证。
 
 ## 1. 本周核心思想
 
@@ -88,27 +88,29 @@ G_i(\theta_i^*,x_{-i}^*)\le\varepsilon_G,
 
 ## 4. 动力学知识用什么低维对象表示
 
-当前更关键的问题不是如何加权聚合，而是先定义可交互的本地动力学对象。一个合格代理必须能够预测未参与拟合的动力学响应、在不同客户端之间具有共同语义、识别接收方缺失的能力，并能映射回接收方自身模型。
+正交响应模态只能表示两个低维对象不重合，不能说明接收方缺少一种可学习能力；如果所有客户端已经被放入公共响应坐标，Functional Map 也失去了实际作用。因此当前不再把互补知识定义为“来源奇异向量在接收方正交补中的分量”。
 
-当前首选是低秩有限时域因果响应算子。将公共端口在多个时刻的干预组成 \(u_i\)，将多个未来时刻的任务相关观测变化组成 \(\delta y_i\)，沿真实 ODE-GNN 轨迹线性化：
-
-\[
-\delta y_i=\mathcal R_i u_i+O(\|u_i\|^2),
-\qquad
-\mathcal R_i\approx U_i\Sigma_iV_i^\top.
-\]
-
-其中 \(\mathcal R_i\) 的每个块仍是因果核 \(\mathcal K_{i,t,s}\)。输入轴由端口类型和施加时刻定义，输出轴由任务观测和观测时刻定义，因此不同图不需要节点一一对应。截断 SVD 只压缩这个小型响应矩阵，不对节点级图算子做分解。
-
-互补知识定义为来源客户端的响应模态在接收方已有算子子空间之外的分量。若 \(b_{jk}\) 是来源 \(j\) 的第 \(k\) 个单位响应模态，\(P_i\) 是接收方模态子空间的投影，则
+新的低维对象是一组有限时域作用方程。客户端 \(j\) 在自己的低维功能空间中测量
 
 \[
-n_{j\to i,k}=\sigma_{jk}(I-P_i)b_{jk}.
+Z_j\mapsto Y_j^\tau=\mathcal P_j^\tau(Z_j).
 \]
 
-服务器对不同来源的 \(n_{j\to i,k}\) 做增量 QR/SVD，合并非冗余方向，为每个接收方形成一个“缺失模态集合”。接收方再用本地响应 Jacobian 检查可实现性，并与 matched local-only 比较任务增益。这里组合的是能力方向的并集，不是模型均值、重心或 prototype。某模态被吸收后会进入 \(P_i\) 的像空间，其后续创新自动减小并最终停止流动。
+Functional Map \(C_{j\to i}\) 把输入与来源演化结果一起搬到接收方。接收方用自己的真实 ODE-GNN 执行运输后的输入，比较
 
-严格地说，非线性 ODE-GNN 沿轨迹的变分系统可能时变，因此当前对象称为有限时域响应算子。只有实验证明响应近似只依赖时间差时，才把它重排并压缩为经典 block-Hankel 形式。
+\[
+E_{j\to i}^\tau
+=
+\mathcal P_i^\tau(C_{j\to i}Z_j)
+-
+C_{j\to i}\mathcal P_j^\tau(Z_j).
+\]
+
+它衡量“先运输后传播”与“先传播后运输”是否交换。若映射可信、该方程当前未被满足、普通本地反向传播可以学会它、并且更新与本地任务相容，这条方程才是接收方缺失的互补知识。
+
+多个客户端提供的是作用方程集合，而不是待平均的 operator。接收方把小型 action-pair distillation loss 加入普通本地训练，逐步满足仍有价值的外部方程。方程被学会后，留出交换缺陷降到零；若剩余方程与本地任务冲突，则不再吸收。最终平衡仍允许必要的本地结构差异。
+
+这一修正也明显减轻了在线计算：不构造完整响应 Jacobian，不做响应 SVD 和接收方正交子空间搜索，也不在每轮运行 local-only counterfactual。Functional Map 与少量 action pairs 可以隔若干联邦轮次更新；matched local-only 只用于早/中/晚 checkpoint 的离线机制审计。
 
 ## 5. 已有实验与初步分析
 
@@ -141,38 +143,40 @@ n_{j\to i,k}=\sigma_{jk}(I-P_i)b_{jk}.
 
 ## 6. 当前判断
 
-本周证据支持重新定义问题，但尚未选出有效代理：
+本周证据支持把问题从“表示距离”进一步改写为“作用方程是否可运输和可学习”，但 R011 尚未得到实验支持：
 
 - 当前自治 ridge generator 的稳态拟合残差约为 `0.276–0.727`，尚无留出时间或端口响应证据，不能继续默认代表本地动力学；
 - 匹配目标下的连续 \(A\) 与 \(P=I+hA\) 代数等价，单纯换成离散传播子不增加表达能力；
 - 因果响应核已经通过 zero-port、因果性和 AD/有限差分一致性检查，说明它可被可靠测量；
-- 这些微型检查仍未证明低秩响应结构、跨客户端互补恢复或任务收益。
+- 现有 Functional Map solver 已包含算子交换残差，但目前只用于对齐 canonical generator；新设计把它提升为知识缺陷，并必须用独立 probes/horizons 防止循环验证；
+- 因果响应微型检查说明有限时域作用可以被可靠测量，但尚未证明 map 语义、方程补全或任务收益。
 
-因此，当前优先级是代理辨识，而不是直接测“流量是否随训练下降”。首选假设为低秩有限时域因果响应算子，delay-AR/Koopman 是主要竞争者，自治和仿射生成元作为低成本基线。
+因此，当前优先级是验证 Functional Map 能否把一条来源动力学作用关系正确搬到接收方，以及普通 action-pair distillation 能否让接收方真正学会它。R010 的响应 SVD 和正交缺失模态不再作为主机制。
 
 ## 7. 下一步最小实验
 
-第一阶段构造具有已知共享模态和客户端独有模态的稳定受控系统，在相同秩和通信字节下比较：
+第一阶段构造具有已知跨客户端 Functional Map 的稳定受控系统，并设置三类作用：已经掌握、可迁移但接收方缺失、对接收方任务有害。比较：
 
-1. 当前自治 generator；
-2. affine generator；
-3. delay-AR/Koopman；
-4. 低秩有限时域因果响应算子；
-5. 未压缩响应核上界。
+1. ground-truth Functional Map；
+2. descriptor/cycle learned map；
+3. wrong map；
+4. identity/no-map；
+5. 旧 canonical prototype pullback 与 R010 正交模态传输。
 
-使用留出端口组合、未来时间块和新初值测量响应 NRMSE、有效秩、bootstrap 子空间稳定性、独有模态 precision/recall 和接收方缺失响应恢复率。该阶段直接回答代理能否识别“别人会、我不会”的动力学能力。
+映射只使用 descriptor 与 cycle split 估计，作用交换缺陷使用未参与映射拟合的 probes/horizons 评估。接收方随后用普通 action-pair distillation 学习外部方程，记录 map/cycle error、留出缺陷下降、任务变化、梯度相容性、通信量与运行时间。
 
-第二阶段才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。每个接收方从同一快照分叉 matched local-only、true source、source/time shuffled、redundant source、raw response upper bound 和 no-flow，检查代理创新分数能否预测真实额外任务增益。
+只有 learned map 能在留出数据上接近 ground truth、正确运输的可迁移方程同时降低缺陷和任务损失、重复与有害方程自然停止、wrong/no-map 和 source/time shuffle 不能复现时，才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。
 
-若某代理不能预测留出响应、不能区分独有与重复模态，或 shuffled source 与真实来源效果相同，则淘汰该代理。若未压缩响应上界本身不能改善接收方，应返回端口/观测语义或“是否存在可迁移动力学知识”这一更上游的问题。只有代理通过后，才开展早—中—晚 checkpoint 的边际增益耗尽实验。
+若 descriptor/cycle 信息不能辨识有效 Functional Map，或者 ground-truth map 下的来源方程仍不能改善接收方任务，则停止扩展算法，返回跨客户端语义对应或知识可迁移性问题。
 
 ## 8. 复现信息
 
-- 当前设计起点提交：`f7b8670`；R010 算子选择文档由本周后续提交记录。工作树仍有两个此前存在的文档删除。
+- 当前设计起点提交：`f7b8670`；R010 与 R011 修正文档由本周后续提交记录。工作树仍有两个此前存在的文档删除。
 - 11 数据集结果与诊断：`.collab/EXPERIMENTS.md` 的 E003。
 - 因果响应数值检查：`.collab/EXPERIMENTS.md` 的 E013 与 `.collab/DYNAMICAL_RESPONSE_CHECKS.md`。
 - 当前方法规范：`methodv0.md`。
-- 算子选择规范：`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`。
-- 当前执行 handoff：`.collab/NEXT_TASK.md`，R010，`NEEDS_RESEARCH`。
+- 当前 R011 规范：`.collab/FUNCTIONAL_INTERTWINING_DYNAMICS.md`。
+- 历史 R010 算子选择：`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`。
+- 当前执行 handoff：`.collab/NEXT_TASK.md`，R011，`NEEDS_RESEARCH`。
 - 回顾性流量分析命令：`python3 backbone_functional_dynamics_stable/scripts/analyze_flow_decay.py`。
 - 本周没有启动新 GPU 训练，没有修改 production source、checkpoint 或数据。

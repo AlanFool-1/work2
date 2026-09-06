@@ -1,5 +1,25 @@
 # Research Agent Log
 
+## 2026-09-06 UTC — R011 Functional Map action constraints
+
+The human identified that R010 still resembled a personalized orthogonal
+shared/private construction: subspace novelty is not equivalent to importing a
+missing capability, and common response coordinates bypassed the existing
+Functional Map. Replaced it with a commuting-diagram view.
+
+Each client now exposes a few finite-horizon action pairs in its local function
+space. A pairwise Functional Map transports both input and evolved output. The
+receiver's knowledge defect is evolve-after-transport minus
+transport-after-evolve. Complementary knowledge is an independently
+transportable, currently unsatisfied, locally learnable, task-compatible
+equation. Multi-client collaboration accumulates equations instead of averaging
+operators or collecting orthogonal modes.
+
+The new online path removes full response Jacobians, response SVD,
+per-receiver subspace search, and per-round local-only counterfactuals. Recorded
+D022, E017, R011, the formal design and a validated pilot manifest. No numeric
+pilot, production edit, or training run was performed.
+
 ## 2026-09-06 UTC — R010 low-dimensional operator-selection redesign
 
 The human rejected the retrospective decay of old correction magnitudes as an

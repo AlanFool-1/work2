@@ -6,17 +6,57 @@ Owner: research-agent (xzc, temporary research takeover explicitly requested by 
 
 Updated: 2026-09-06 UTC
 
-Handoff: R010
+Handoff: R011
 
-## Low-dimensional dynamics operator selection — 2026-09-06 UTC
+## Functional-map action-constraint completion — 2026-09-06 UTC
+
+The human identified two flaws in R010: orthogonal operator novelty is not the
+same as importing a capability the receiver lacks, and placing response
+operators in a pre-shared coordinate system removes the substantive role of
+the existing Functional Map machinery.
+
+R011 replaces orthogonal mode transfer with transported finite-horizon action
+constraints. Client `j` supplies small action pairs `Z_j -> P_j^tau(Z_j)`.
+Functional Map `C_j_to_i` transports both sides to client `i`. The receiver's
+knowledge defect is the failure of the diagram to commute:
+
+`E_j_to_i = P_i^tau(C_j_to_i Z_j) - C_j_to_i P_j^tau(Z_j)`.
+
+An external equation is complementary only when the map generalizes, the
+held-out defect is nonzero, normal local backprop reduces that defect, and the
+update is compatible with the receiver's task. Multiple sources contribute a
+set of equations rather than modes for a server average. Already learned or
+duplicate equations have negligible defect; harmful equations fail the task
+gate.
+
+The online path must remain light: reuse a low-dimensional trajectory basis,
+descriptor, and Functional Map; exchange only a few `r x Q` action pairs at a
+small set of horizons; realize them with an ordinary distillation loss. Do not
+construct the full response Jacobian, compute receiver-specific orthogonal
+subspaces, or run a matched local-only fork every round. Matched local-only is
+an offline mechanism audit only.
+
+Next action: implement the frozen CPU pilot in
+`.collab/FUNCTIONAL_INTERTWINING_DYNAMICS.md` and
+`.collab/functional_intertwining_pilot.yaml`. Start with a known ground-truth
+map and three action classes: already satisfied, transferable missing, and
+task harmful. Compare ground-truth, learned descriptor/cycle, wrong, and
+identity maps. Fit maps and evaluate action defects on disjoint probes or
+horizons to prevent the map from explaining away the signal.
+
+Do not modify the production aggregator or launch graph training. Advance only
+if map recovery/cycle consistency, held-out defect classification, receiver
+distillation benefit, negative controls, and the cost reduction all pass.
+
+## Historical R010: low-dimensional dynamics operator selection — 2026-09-06 UTC
 
 The human rejected E015's retrospective flow decay as a useful next
 experiment. That analysis observes old-controller magnitudes and cannot decide
 what dynamical knowledge should be exchanged. Keep it only as historical side
 evidence.
 
-The current research gate is representation selection. Compare local dynamics
-objects under matched rank and communication budgets. The leading candidate is
+R010 proposed representation selection by comparing local dynamics
+objects under matched rank and communication budgets. R010's leading candidate was
 a low-rank finite-horizon causal response operator mapping shared port/time
 perturbations to shared task-observation/time responses. Do not call it a
 Hankel operator unless approximate lag stationarity is measured; the nonlinear
@@ -30,7 +70,7 @@ incremental QR/SVD, then filter them by receiver realizability and gain over a
 matched local-only update. The server forms a receiver-specific union of
 nonredundant modes; it does not average models or publish a common prototype.
 
-Next action: implement only the measurement/evaluation pilot specified in
+Historical action, superseded by R011: implement the measurement/evaluation pilot specified in
 `.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md` and
 `.collab/operator_proxy_pilot.yaml`. Stage A must use known shared and
 client-exclusive modes to test whether the proxies recover true
@@ -40,7 +80,7 @@ exist. Compare the current autonomous generator, affine generator,
 delay-AR/Koopman, low-rank causal response operator, and raw-response upper
 bound under matched budgets.
 
-Do not launch the 11-dataset matrix or integrate a training-time aggregator.
+R010 did not authorize the 11-dataset matrix or a training-time aggregator.
 Advance only if one proxy passes held-out response fidelity, missing-mode
 recovery, bootstrap stability, and predicts realized benefit over local-only;
 source/time-shuffled and redundant-source controls must fail. If the raw

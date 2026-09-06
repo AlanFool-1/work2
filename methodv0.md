@@ -1,10 +1,47 @@
 # Method v0.1：异质图联邦学习中的有限互补动力学知识吸收
 
-## 当前表示门槛：先确定“本地动力学知识”是什么（2026-09-06）
+## 当前骨架：Functional Map 运输下的动力学约束补全（R011）
+
+当前交换对象是一组低维有限时域作用方程，而不是正交响应模态。客户端 \(j\) 在本地功能空间中测量
+
+\[
+Z_j\mapsto Y_j^\tau=\mathcal P_j^\tau(Z_j).
+\]
+
+Functional Map \(C_{j\to i}\) 把整条作用关系运输到客户端 \(i\)：
+
+\[
+C_{j\to i}Z_j
+\mapsto
+C_{j\to i}Y_j^\tau.
+\]
+
+接收方用真实本地 ODE-GNN 执行左侧输入。如果
+
+\[
+\boxed{
+E_{j\to i}^\tau
+=
+\mathcal P_i^\tau(C_{j\to i}Z_j)
+-
+C_{j\to i}\mathcal P_j^\tau(Z_j)
+\ne0,
+}
+\]
+
+则“先运输后传播”与“先传播后运输”不交换。只有当映射可信、该方程可以由本地反向传播学会、且更新与本地任务相容时，它才构成客户端 \(i\) 的互补知识。
+
+多客户端协作是作用方程的累积与满足，不生成全局 prototype 或平均 operator。接收方通过普通 task loss 加 action-pair distillation 学习这些方程；不在线构造完整响应 Jacobian、不做正交缺失子空间，也不每轮运行 local-only counterfactual。当所有可信外部方程已经满足或不再对本地任务有益时，知识流停止。
+
+Functional Map 在这里是跨客户端函数空间的运输边，并通过 map-network cycle consistency 约束；它不再只是把本地 generator 对齐到 canonical prototype 的辅助工具。为了避免循环验证，第一版用 descriptor/cycle split 估计映射，在独立 action probes 和 horizons 上测交换缺陷。
+
+完整规范、理论边界、代码复用关系和最小实验见 .collab/FUNCTIONAL_INTERTWINING_DYNAMICS.md。以下 R010 正交响应子空间方案已经降为历史候选。
+
+## 历史 R010：低秩响应算子与正交缺失模态（已被 R011 修正）
 
 本方法尚不能直接进入边际增益或完整联邦实验。必须先证明所交换的低维对象能够表示本地系统在共同干预下的有限时域动力学，并能识别“来源客户端拥有、接收客户端缺失”的响应模态。旧的自治 ridge generator、与其匹配的离散 \(P=I+hA\)、prototype、重心或参数均值都没有通过该门槛。
 
-当前首选候选是低秩有限时域因果响应算子
+R010 当时的首选候选是低秩有限时域因果响应算子
 
 \[
 \delta y_i=\mathcal R_i u_i+O(\|u_i\|^2),
@@ -46,9 +83,11 @@
 
 最终状态不要求客户端响应一致。仅当可迁移且对本地任务有益的动力学差异已经被吸收、不可实现或不再提供额外收益时，知识流归零；任务必要差异可以保留。
 
-### 从异质性能量改为外部边际增益
+### 外部边际增益作为离线机制 estimand
 
-令 $\mathcal V_i^{\mathrm{loc}}$ 是客户端用相同计算预算能够产生的本地更新集合，$\mathcal V_i^{\mathrm{fed}}(x_{-i})$ 在其中加入由其他客户端因果动力学响应提供、且能通过本地响应 Jacobian $D_i$ 实现的方向。显然
+R011 不在每轮显式求解响应 Jacobian 或运行 local-only 分叉。以下 \(G_i\) 保留为早/中/晚 checkpoint 的离线机制审计量，用来检验联邦作用方程相对等预算本地学习是否真的提供额外价值。
+
+令 \(\mathcal V_i^{\mathrm{loc}}\) 是客户端用相同计算预算能够产生的本地更新集合，\(\mathcal V_i^{\mathrm{fed}}(x_{-i})\) 在其中加入由外部 action-pair distillation 产生的本地更新方向。显然
 
 \[
 \mathcal V_i^{\mathrm{loc}}
@@ -87,27 +126,31 @@ L_i^{\mathrm{guard}}(\theta_i+\alpha v_i^{\mathrm{loc}})
 L_i^{\mathrm{guard}}(\theta_i+\alpha v_i^{\mathrm{fed}}).
 \]
 
-只有当 $\widehat G_i$ 超过误差阈值、响应实现残差受控且任务 guard 通过时，外部更新才被接受。外部流量由可实现方向和边际收益共同决定，而不是由固定 injection coefficient 或轮数衰减表决定。
+在线时使用作用交换缺陷、方程梯度与任务梯度的一阶相容性以及本地 guard；只有离线审计才计算 \(\widehat G_i\)。外部流量由尚未满足且任务相容的作用方程决定，而不是由固定 injection coefficient 或轮数衰减表决定。
 
-### 因果响应核提供什么
+### Functional Map 运输的作用方程提供什么
 
-客户端仍使用带有端口、施加时刻 $s$、观测时刻 $t$ 和输出语义的有限时间因果响应核
+客户端 \(j\) 在本地功能空间中测量少量有限时域 action pairs：
 
 \[
-\mathcal K_{i,t,s}
-=
-\left.
-\frac{\partial\mathcal O_i(h_{i,t})}{\partial u_{i,s}}
-\right|_{u=0}
+Z_j\mapsto Y_j^\tau=\mathcal P_j^\tau(Z_j).
 \]
 
-描述自己掌握的图动力学作用方式。其他客户端的核不直接作为目标；它们只生成候选外部响应方向。接收客户端通过 $D_i=D_{\theta_i}\operatorname{vec}(\mathcal K_i)$ 判断这些方向能否在自己的向量场中实现，再由 $G_i$ 判断实现后是否比本地学习更有价值。
+Functional Map 把输入与演化结果一起运输到接收方。接收方在自己的真实 ODE-GNN 中执行 \(C_{j\to i}Z_j\)，比较
+
+\[
+\mathcal P_i^\tau(C_{j\to i}Z_j)
+\quad\text{与}\quad
+C_{j\to i}\mathcal P_j^\tau(Z_j).
+\]
+
+互补性由一条外部方程是否尚未满足、能否通过普通本地反向传播学会、以及是否与本地任务一致来定义。因果响应核可以生成 action pairs 或作为离线诊断，但不再被 SVD 成正交“缺失模态”。
 
 这形成三重筛选：
 
-1. **可比较**：端口、时间和任务观测语义一致；
-2. **可实现**：候选响应变化落在接收客户端 $D_i$ 的可达范围内；
-3. **有增益**：相对等预算 local-only 更新产生正的任务增益。
+1. **可运输**：descriptor/cycle 估计的 Functional Map 在留出数据上可靠；
+2. **可学习**：普通本地更新能降低留出作用交换缺陷；
+3. **有增益**：更新与本地任务梯度/guard 相容，并在离线审计中优于等预算 local-only。
 
 ### 平衡和有限增益的理论表述
 
@@ -148,14 +191,9 @@ L_i(\theta_i^0)-L_i^{\inf}<\infty,
 
 ### 下一步实验
 
-先执行代理选择实验，而不是直接验证边际增益衰减。用具有已知共享/独有模态的受控系统，并在 feature-only、structure-only 和 joint synthetic 的冻结 checkpoint 上，以相同秩和通信字节比较：自治生成元、仿射生成元、delay-AR/Koopman、低秩有限时域因果响应算子和未压缩响应上界。先检查留出端口/时间响应、子空间稳定性和缺失模态恢复，再从同一快照执行：
+先执行已知 Functional Map 的 action-constraint pilot。合成系统显式包含已掌握、可迁移缺失和任务有害三类作用。比较 ground-truth、descriptor/cycle learned、wrong 和 identity maps；映射拟合与作用缺陷评估必须使用不同 probes/horizons。
 
-1. 等预算 local-only 更新；
-2. 基于真实因果响应的 external update；
-3. 时间打乱或来源错配的 external update；
-4. no-flow 控制。
-
-逐客户端报告留出响应误差、有效秩、已知独有模态恢复、预测 $G_i$、实际 $\widehat G_i$、外部更新范数、响应实现残差和任务变化。只有能识别缺失模态、且创新分数能够预测真实接收方增益的代理才进入早—中—晚吸收实验。若未压缩真实响应本身不能优于 local-only，应返回端口/观测语义或知识可迁移性的上游问题，而不是调大代理维度。
+接收方通过普通 action-pair distillation 学习外部方程。报告 map/cycle error、留出交换缺陷、缺陷下降、任务变化、梯度相容性、通信量和时间，并与旧 canonical prototype pullback、R010 正交模态方法及 matched local-only 审计对照。只有正确运输的可迁移缺失方程同时降低缺陷与任务损失，而重复、有害、wrong-map 和 shuffled 方程不能复现时，才进入冻结真实图 checkpoint。
 
 ## 昨晚 v0 的守恒响应流规格（历史推导，受以上原则修正）
 
@@ -888,7 +926,7 @@ R010 将公共因果响应块组成有限时域输入—输出算子
 \mathcal R_m^{(r)}=U_m\Sigma_mV_m^\top,
 \]
 
-并把该低秩算子作为当前首选候选。未压缩响应是保真上界，截断 SVD 只作用于由公共端口/时间与公共观测/时间定义的小矩阵。只有当响应近似由时间差决定时，才进一步采用 block-Hankel 结构。
+R010 曾把该低秩算子作为首选候选。未压缩响应是保真上界，截断 SVD 只作用于由公共端口/时间与公共观测/时间定义的小矩阵。只有当响应近似由时间差决定时，才进一步采用 block-Hankel 结构。D022/R011 已取消以正交响应模态定义互补性的方案。
 
 自治连续生成元 \(A_m\) 和满足 \(P_m=I+\Delta t A_m\) 的 identity-centered 离散传播子，在匹配数据、正则化和误差尺度下代数等价，不能作为两个不同表达能力的候选。R010 的有效竞争者改为：
 
