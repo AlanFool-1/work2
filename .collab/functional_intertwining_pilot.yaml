@@ -44,7 +44,7 @@ evaluation:
   seeds: [11, 23, 37, 42, 59]
   checkpoints: [frozen_pilot]
   fit_split: "Estimate Functional Maps from descriptor probes and network cycles only; do not use the held-out action probes or horizons that define transfer."
-  test_split: "Evaluate map error, cycle error, action defect, distillation, and task behavior on held-out probes/horizons and paired receiver forks."
+  test_split: "Use mutually disjoint action-train, online-gate, and final-test probes. Evaluate map error, cycle error, action defect, distillation, and task behavior on final-test probes/horizons and paired receiver forks."
   metrics:
     - functional_map_relative_error
     - cycle_consistency_error
@@ -69,10 +69,11 @@ compute:
     task_probe_columns_per_split: 36
     action_horizons: [0.5, 1.0]
     receiver_steps: 60
+    recompute_gate_each_receiver_step: true
     learning_rate: 0.025
     flow_strength: 4.0
     map_error_threshold: 0.10
     defect_threshold: 0.01
 outputs:
-  run_tag: functional_intertwining_r012_five_seed
+  run_tag: functional_intertwining_r012_dynamic_gate_five_seed
   directory: "Use a new timestamped directory under backbone_functional_dynamics_stable/run_logs; never overwrite existing artifacts."

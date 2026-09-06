@@ -178,13 +178,15 @@ def _gate_diagnostics(initial_operator, task_train_pairs, constraints,
             _pairs_loss(value, pairs)
         )
         cosine = _cosine(task_gradient, constraint_gradient)
-        defect = _relative_defect(initial_operator, payload["test"])
-        accepted = bool(map_reliable and defect > defect_threshold and cosine > 0.0)
+        gate_defect = _relative_defect(initial_operator, payload["gate"])
+        heldout_defect = _relative_defect(initial_operator, payload["test"])
+        accepted = bool(map_reliable and gate_defect > defect_threshold and cosine > 0.0)
         gate = max(cosine, 0.0) if accepted else 0.0
         gates[class_name] = gate
         diagnostics[class_name] = {
             "gradient_cosine": cosine,
-            "heldout_defect": defect,
+            "gate_defect": gate_defect,
+            "heldout_defect": heldout_defect,
             "accepted": accepted,
             "gate": gate,
         }
@@ -213,28 +215,47 @@ def _flow_gradient(operator, constraints, gates):
 
 
 def _optimize(initial_operator, task_train_pairs, constraints, gates,
-              steps, learning_rate, flow_strength):
+              steps, learning_rate, flow_strength, dynamic_gates=False,
+              map_reliable=True, defect_threshold=0.01):
     parameter = initial_operator.detach().clone().requires_grad_(True)
     optimizer = torch.optim.Adam([parameter], lr=float(learning_rate))
     all_horizons = sorted(set(
         [pair[0] for pair in task_train_pairs]
         + [
-            pair[0] for name, gate in gates.items() if gate > 0.0
+            pair[0] for name in constraints
             for pair in constraints[name]["train"]
         ]
     ))
+    gate_active_counts = {name: 0 for name in constraints}
+    current_gates = dict(gates)
     for _ in range(int(steps)):
+        if dynamic_gates:
+            current_gates, _ = _gate_diagnostics(
+                parameter.detach(), task_train_pairs, constraints,
+                map_reliable, defect_threshold
+            )
+        for name, gate in current_gates.items():
+            gate_active_counts[name] += int(gate > 0.0)
         optimizer.zero_grad()
         propagators = _propagators(parameter, all_horizons)
         loss = _pairs_loss(parameter, task_train_pairs, propagators)
-        for name, gate in gates.items():
+        for name, gate in current_gates.items():
             if gate > 0.0:
                 loss = loss + float(flow_strength) * float(gate) * _pairs_loss(
                     parameter, constraints[name]["train"], propagators
                 )
         loss.backward()
         optimizer.step()
-    return parameter.detach()
+    if dynamic_gates:
+        current_gates, _ = _gate_diagnostics(
+            parameter.detach(), task_train_pairs, constraints,
+            map_reliable, defect_threshold
+        )
+    active_fractions = {
+        name: count / float(max(int(steps), 1))
+        for name, count in gate_active_counts.items()
+    }
+    return parameter.detach(), current_gates, active_fractions
 
 
 def _mean_std_ci(values):
@@ -329,6 +350,10 @@ def _build_seed(seed, rank, descriptor_columns, probe_columns, task_columns):
         name: _make_probes(rank, probe_columns, dims, generator)
         for name, dims in coordinates.items()
     }
+    gate_probes = {
+        name: _make_probes(rank, probe_columns, dims, generator)
+        for name, dims in coordinates.items()
+    }
     task_train_base = torch.randn(
         rank, task_columns, generator=generator, dtype=torch.float64
     )
@@ -345,6 +370,7 @@ def _build_seed(seed, rank, descriptor_columns, probe_columns, task_columns):
         },
         "train_probes": train_probes,
         "test_probes": test_probes,
+        "gate_probes": gate_probes,
         "task_train_base": task_train_base,
         "task_test_base": task_test_base,
     }
@@ -395,8 +421,12 @@ def _run_regime(seed_payload, seed, regime, args):
             source_operator, candidate_map, seed_payload["test_probes"],
             args.action_horizons
         )
+        gate = _action_pairs(
+            source_operator, candidate_map, seed_payload["gate_probes"],
+            args.action_horizons
+        )
         constraints = {
-            name: {"train": train[name], "test": test[name]}
+            name: {"train": train[name], "gate": gate[name], "test": test[name]}
             for name in train
         }
         reliable = seed_payload["map_errors"][map_name] <= args.map_error_threshold
@@ -410,6 +440,7 @@ def _run_regime(seed_payload, seed, regime, args):
                 "seed": int(seed), "regime": regime, "map": map_name,
                 "class": class_name,
                 "map_reliable": bool(reliable),
+                "gate_defect": values["gate_defect"],
                 "heldout_defect": values["heldout_defect"],
                 "gradient_cosine": values["gradient_cosine"],
                 "accepted": float(values["accepted"]),
@@ -425,8 +456,15 @@ def _run_regime(seed_payload, seed, regime, args):
         source_operator, learned_map, seed_payload["test_probes"],
         args.action_horizons, shuffled=True, generator=generator
     )
+    shuffled_gate = _action_pairs(
+        source_operator, learned_map, seed_payload["gate_probes"],
+        args.action_horizons, shuffled=True, generator=generator
+    )
     shuffled_constraints = {
-        name: {"train": shuffled_train[name], "test": shuffled_test[name]}
+        name: {
+            "train": shuffled_train[name], "gate": shuffled_gate[name],
+            "test": shuffled_test[name]
+        }
         for name in shuffled_train
     }
     shuffled_gates, shuffled_diagnostics = _gate_diagnostics(
@@ -437,21 +475,37 @@ def _run_regime(seed_payload, seed, regime, args):
         gating_rows.append({
             "seed": int(seed), "regime": regime, "map": "source_time_shuffle",
             "class": class_name, "map_reliable": True,
+            "gate_defect": values["gate_defect"],
             "heldout_defect": values["heldout_defect"],
             "gradient_cosine": values["gradient_cosine"],
             "accepted": float(values["accepted"]), "gate": values["gate"],
         })
 
     conditions = {
-        "local_only": ({}, {}),
-        "action_flow_ground_truth": constraints_by_map["ground_truth"],
-        "action_flow_learned": constraints_by_map["learned"],
-        "wrong_map_gated": constraints_by_map["wrong"],
-        "identity_map_gated": constraints_by_map["identity"],
-        "source_time_shuffle_gated": (shuffled_constraints, shuffled_gates),
+        "local_only": ({}, {}, False, False),
+        "action_flow_ground_truth": (
+            constraints_by_map["ground_truth"][0],
+            constraints_by_map["ground_truth"][1], True, True
+        ),
+        "action_flow_learned": (
+            constraints_by_map["learned"][0],
+            constraints_by_map["learned"][1], True, True
+        ),
+        "wrong_map_gated": (
+            constraints_by_map["wrong"][0],
+            constraints_by_map["wrong"][1], False, False
+        ),
+        "identity_map_gated": (
+            constraints_by_map["identity"][0],
+            constraints_by_map["identity"][1], False, False
+        ),
+        "source_time_shuffle_gated": (
+            shuffled_constraints, shuffled_gates, True, True
+        ),
         "harmful_ungated": (
             constraints_by_map["ground_truth"][0],
             {"satisfied": 0.0, "transferable": 0.0, "harmful": 1.0},
+            False, True
         ),
     }
 
@@ -460,15 +514,17 @@ def _run_regime(seed_payload, seed, regime, args):
     condition_rows = []
     final_operators = {}
     start = time.perf_counter()
-    for condition, (constraints, gates) in conditions.items():
+    for condition, (constraints, gates, dynamic_gates, map_reliable) in conditions.items():
         active_constraints = constraints if constraints else true_constraints
-        final_operator = _optimize(
+        final_operator, final_gates, active_fractions = _optimize(
             initial_operator, task_train_pairs, active_constraints, gates,
-            args.steps, args.learning_rate, args.flow_strength
+            args.steps, args.learning_rate, args.flow_strength,
+            dynamic_gates=dynamic_gates, map_reliable=map_reliable,
+            defect_threshold=args.defect_threshold
         )
         final_operators[condition] = final_operator
         initial_flow = _flow_gradient(initial_operator, active_constraints, gates)
-        final_flow = _flow_gradient(final_operator, active_constraints, gates)
+        final_flow = _flow_gradient(final_operator, active_constraints, final_gates)
         row = {
             "seed": int(seed), "regime": regime, "condition": condition,
             "task_before": task_before,
@@ -479,6 +535,10 @@ def _run_regime(seed_payload, seed, regime, args):
             "flow_norm_initial": float(torch.linalg.norm(initial_flow).item()),
             "flow_norm_final": float(torch.linalg.norm(final_flow).item()),
         }
+        for class_name in ("satisfied", "transferable", "harmful"):
+            row[class_name + "_gate_active_fraction"] = active_fractions.get(
+                class_name, 0.0
+            )
         for class_name in ("satisfied", "transferable", "harmful"):
             before = _relative_defect(initial_operator, true_constraints[class_name]["test"])
             after = _relative_defect(final_operator, true_constraints[class_name]["test"])
@@ -509,6 +569,8 @@ def _run_regime(seed_payload, seed, regime, args):
         "flow_norm_initial": 0.0,
         "flow_norm_final": 0.0,
     }
+    for class_name in ("satisfied", "transferable", "harmful"):
+        row[class_name + "_gate_active_fraction"] = 0.0
     for class_name in ("satisfied", "transferable", "harmful"):
         before = _relative_defect(initial_operator, true_constraints[class_name]["test"])
         after = _relative_defect(parameter_average, true_constraints[class_name]["test"])
@@ -663,6 +725,17 @@ def _decision(summary):
             ),
         },
         {
+            "name": "dynamic gate prevents source/time shuffle from materially harming local-only",
+            "passed": all(
+                outcomes[(regime, "source_time_shuffle_gated")]["task_after"]["mean"]
+                <= max(
+                    1.10 * outcomes[(regime, "local_only")]["task_after"]["mean"],
+                    outcomes[(regime, "local_only")]["task_after"]["mean"] + 1e-8,
+                )
+                for regime in regimes
+            ),
+        },
+        {
             "name": "learned action flow beats the norm-matched mapped parameter average in every regime",
             "passed": all(
                 outcomes[(regime, "action_flow_learned")]["task_after"]["mean"]
@@ -761,6 +834,9 @@ def main():
                 "extra_gain_vs_local", "transferable_defect_reduction",
                 "harmful_defect_reduction", "parameter_delta_norm",
                 "flow_norm_initial", "flow_norm_final", "flow_decay_ratio",
+                "satisfied_gate_active_fraction",
+                "transferable_gate_active_fraction",
+                "harmful_gate_active_fraction",
             ]
         ),
         "communication": {
