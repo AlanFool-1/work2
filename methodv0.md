@@ -1,4 +1,37 @@
-# Method v0.1：异质图联邦学习中的有限互补动力学知识吸收
+# Method v0.2：异质图联邦学习中的有限互补动力学知识吸收
+
+## 当前优化骨架：无 FedAvg 的 Functional Action Flow（R012）
+
+候选方法不上传、平均或广播模型参数。客户端 \(i\) 始终保留本地参数 \(\theta_i\)，服务器只维护 Functional Map 网络并路由低维 action pairs。FedAvg 只作为对照方法；本文后续历史章节中出现的 FedAvg 生命周期不属于 R012。
+
+对可靠的有向边 \(j\to i\)，Functional Map 运输来源作用方程并产生交换缺陷 \(E_{j\to i}\)。其任务相容边电导为
+
+\[
+g_{j\to i}
+=m_{j\to i}[\chi_{j\to i}]_+
+\mathbf 1[\|E_{j\to i}^{\mathrm{heldout}}\|>\varepsilon_E],
+\]
+
+对应的知识流不是参数差 \(\theta_j-\theta_i\)，而是作用缺陷在接收方参数空间中的下降力
+
+\[
+I_{j\to i}
+=-g_{j\to i}\nabla_{\theta_i}
+\frac12\|E_{j\to i}(\theta_i)\|^2.
+\]
+
+客户端按
+
+\[
+\boxed{
+\theta_i^{r+1}
+=\theta_i^r
+-\eta_i\nabla\mathcal L_i^{\mathrm{task}}
++\eta_i\sum_j I_{j\to i}
+}
+\]
+
+更新。来源 action sketch 在一次吸收微步内冻结，随后随来源本地学习周期性刷新。该结构没有全局模型或参数凸组合；跨客户端作用只在方程可运输、未掌握且与本地任务相容时开启。方程学会后 \(E\to0\)，任务不相容时 \(g=0\)，当前模型不可实现时 \(\nabla_{\theta_i}\|E\|^2=0\)，三种情形都会使 \(I_{j\to i}\to0\)。系统的平衡是有效作用流归零，不是客户端参数达成共识。
 
 ## 当前骨架：Functional Map 运输下的动力学约束补全（R011）
 
@@ -31,7 +64,7 @@ C_{j\to i}\mathcal P_j^\tau(Z_j)
 
 则“先运输后传播”与“先传播后运输”不交换。只有当映射可信、该方程可以由本地反向传播学会、且更新与本地任务相容时，它才构成客户端 \(i\) 的互补知识。
 
-多客户端协作是作用方程的累积与满足，不生成全局 prototype 或平均 operator。接收方通过普通 task loss 加 action-pair distillation 学习这些方程；不在线构造完整响应 Jacobian、不做正交缺失子空间，也不每轮运行 local-only counterfactual。当所有可信外部方程已经满足或不再对本地任务有益时，知识流停止。
+多客户端协作是作用方程的累积与满足，不生成全局模型、prototype 或平均 operator。接收方通过普通 task loss 加 action-pair distillation 学习这些方程；不在线构造完整响应 Jacobian、不做正交缺失子空间，也不每轮运行 local-only counterfactual。当所有可信外部方程已经满足或不再对本地任务有益时，知识流停止。
 
 Functional Map 在这里是跨客户端函数空间的运输边，并通过 map-network cycle consistency 约束；它不再只是把本地 generator 对齐到 canonical prototype 的辅助工具。为了避免循环验证，第一版用 descriptor/cycle split 估计映射，在独立 action probes 和 horizons 上测交换缺陷。
 

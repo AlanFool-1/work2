@@ -6,7 +6,26 @@ Owner: research-agent (xzc, temporary research takeover explicitly requested by 
 
 Updated: 2026-09-06 UTC
 
-Handoff: R011
+Handoff: R012
+
+## No-FedAvg Functional Action Flow amendment — 2026-09-06 UTC
+
+The human rejected retaining FedAvg underneath the dynamics channel. The
+proposed method now has no model upload, parameter averaging, or global model
+broadcast after initialization. Each client keeps persistent local parameters.
+The server only maintains the Functional Map network and routes action pairs.
+
+For an accepted edge, the receiver update is driven by
+`I_j_to_i = -g_j_to_i grad_theta_i (0.5 ||E_j_to_i||^2)`, where the conductance
+uses independent map confidence, held-out defect, and task compatibility. This
+is a residual-driven functional coupling, not a weighted parameter
+interpolation. Flow stops when the equation is satisfied, task-incompatible,
+or locally unrealizable. FedAvg remains a baseline control.
+
+The immediate evidence gate is still the known-map action-constraint pilot
+below. Add a matched parameter-average control where model shapes permit, but
+do not implement the production training loop until the action interface
+passes the R011 gate.
 
 ## Functional-map action-constraint completion — 2026-09-06 UTC
 

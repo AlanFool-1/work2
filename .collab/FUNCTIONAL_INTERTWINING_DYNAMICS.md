@@ -2,7 +2,7 @@
 
 日期：2026-09-06 UTC
 
-状态：NEEDS_RESEARCH。本文修正“正交缺失模态”方案，并作为 R011 的当前设计。
+状态：NEEDS_RESEARCH。本文在 R011 的作用方程接口上加入 R012 的无参数聚合优化骨架。
 
 ## 1. 核心修正
 
@@ -138,7 +138,9 @@ E_{j\to i}^\tau
 
 知识吸收后，同一方程的交换缺陷下降到阈值内，后续不再产生流量。不同来源若提供等价方程，只会重复已有约束，而不会因为方向略有不同被误判为新知识。
 
-## 5. 多客户端交互不需要模型聚合
+## 5. 多客户端交互不使用模型聚合
+
+候选方法删除 FedAvg 的参数上传、服务器平均和全局模型广播。每个客户端从始至终维护自己的参数 \(\theta_i\)，本地任务损失负责学习本地数据；联邦协作只通过跨客户端作用方程改变 \(\theta_i\)。FedAvg 仅作为实验基线，不是候选方法的训练骨架。
 
 服务器维护稀疏的 Functional Map Network。边 \(j\to i\) 携带
 
@@ -154,7 +156,48 @@ E_{j\to i}^\tau
 \{\Gamma_{j\to i}^{q,\tau}\}.
 \]
 
-接收方使用标准训练目标
+在第 \(r\) 个交换时刻固定来源 action sketch，定义接收方的边缺陷损失
+
+\[
+\ell_{j\to i}^r(\theta_i)
+=\frac12\sum_{q,\tau}
+\left\|E_{j\to i}^{q,\tau}(\theta_i)\right\|_2^2.
+\]
+
+映射置信度、任务相容性和缺陷阈值共同决定边电导
+
+\[
+g_{j\to i}^r
+=m_{j\to i}^r[\chi_{j\to i}^r]_+
+\mathbf 1\!\left[
+\|E_{j\to i}^{r,\mathrm{heldout}}\|>\varepsilon_E
+\right].
+\]
+
+这里的 \(g_{j\to i}\) 只控制一条作用方程是否产生更新力，不是模型聚合权重。来源到接收方的参数空间知识流定义为
+
+\[
+\boxed{
+I_{j\to i}^r
+=-g_{j\to i}^r
+\nabla_{\theta_i}\ell_{j\to i}^r.
+}
+\]
+
+接收方的更新为
+
+\[
+\boxed{
+\theta_i^{r+1}
+=\theta_i^r
+-\eta_i\nabla_{\theta_i}\mathcal L_i^{\mathrm{task}}
++\eta_i\sum_{j\in\mathcal N(i)}I_{j\to i}^r.
+}
+\]
+
+这一式子没有 \(\theta_j\) 与 \(\theta_i\) 的凸组合，也没有全局参数。跨客户端信息只通过 \(E_{j\to i}\) 的反向传播进入接收方真实模型。为了控制移动目标，来源 action sketch 在一次接收方吸收微步内冻结，每隔 \(K\) 个本地阶段重新测量。
+
+等价地，接收方在一个吸收阶段使用
 
 \[
 \mathcal L_i
@@ -164,7 +207,7 @@ E_{j\to i}^\tau
 \rho\!\left(\ell_\Gamma(\theta_i)\right),
 \]
 
-其中 \(\mathcal B_i\) 是本轮仍未满足且任务相容的小型方程批次，\(\rho\) 是稳健损失。普通反向传播同时完成“本地实现”和参数更新，不显式构造 \(D_{\theta_i}\operatorname{vec}(\mathcal R_i)\)。
+其中 \(\mathcal B_i\) 是本轮仍未满足且任务相容的小型方程批次，\(\rho\) 是稳健损失，\(\lambda_{\mathrm{dyn}}\) 由上述边电导实现。普通反向传播同时完成“本地实现”和参数更新，不显式构造 \(D_{\theta_i}\operatorname{vec}(\mathcal R_i)\)。
 
 可用任务梯度与方程梯度的一阶内积作为廉价在线门控：
 
@@ -204,7 +247,16 @@ J_{j\to i}^r
 \chi_{j\to i}\le0.
 \]
 
-前者表示该作用已经学会，后者表示剩余差异对本地任务没有可吸收价值。最终不要求 \(K_i=K_j\)，只要求在可运输、被探针覆盖且任务有益的函数上不存在新的有效方程。
+前者表示该作用已经学会，后者表示剩余差异对本地任务没有可吸收价值。若 \(\nabla_{\theta_i}\ell_{j\to i}=0\) 而缺陷仍非零，则该作用在当前接收方模型内不可实现，也不再产生有效参数流。因而更直接的停止量是
+
+\[
+\|I_{j\to i}^r\|
+=g_{j\to i}^r
+\|\nabla_{\theta_i}\ell_{j\to i}^r\|
+\longrightarrow0.
+\]
+
+最终不要求 \(K_i=K_j\) 或 \(\theta_i=\theta_j\)，只要求在可运输、被探针覆盖且任务有益的函数上不存在新的可实现方程。
 
 在线性固定映射的理想化情形，边损失
 
@@ -269,7 +321,7 @@ R011 删除四个在线步骤：
 3. 在 fit probes 上估计 map，在 held-out probes 与 held-out horizons 上计算交换缺陷；
 4. 用普通 action-pair distillation 更新接收方，检查可迁移独有作用的缺陷和任务误差是否同时下降；
 5. 检查重复方程是否自然产生近零新流，任务有害方程是否被梯度/guard 拒绝；
-6. 与旧 canonical-prototype pullback 和 R010 orthogonal-mode transfer 做等预算对照。
+6. 与旧 canonical-prototype pullback、R010 orthogonal-mode transfer 和 matched parameter averaging 做等预算对照。
 
 支持 R011 需要同时看到：
 
@@ -277,6 +329,7 @@ R011 删除四个在线步骤：
 - 正确 map 下的缺陷能区分已掌握、可迁移缺失和不可迁移作用；
 - action-pair distillation 能把缺陷下降落实为任务改善；
 - wrong/no-map、source/time shuffle 不能复现结果；
+- 参数平均不能复现对可迁移、有害和重复方程的选择性；
 - 运行和通信成本明显低于完整响应 Jacobian 方案。
 
 若 descriptor-only map 本身不可辨识，或者正确 map 下来源方程仍不能改善接收方，则停止算法扩展。此时问题在跨客户端语义对应或知识可迁移性，不应再增加聚合结构。

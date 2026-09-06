@@ -1,5 +1,5 @@
 study_id: functional-intertwining-action-constraints-r011
-claim: "A descriptor-and-cycle-estimated Functional Map transports finite-horizon action equations so that unsatisfied transferable equations can be learned by a receiver, while already-satisfied, wrong-map, shuffled, and task-harmful equations do not produce effective flow."
+claim: "Without parameter averaging, a descriptor-and-cycle-estimated Functional Map transports finite-horizon action equations so that unsatisfied transferable equations can be learned by a receiver, while already-satisfied, wrong-map, shuffled, and task-harmful equations do not produce effective flow."
 stage: design
 code:
   project: /opt/data/private/xzc/work2/backbone_functional_dynamics_stable
@@ -15,6 +15,7 @@ intervention:
     - probe_and_horizon_budgets
     - local_update_steps_and_norm
     - map_fit_and_defect_evaluation_split
+    - no_parameter_averaging_in_proposed_path
 mediator:
   name: heldout_intertwining_defect
   definition: "E_j_to_i_tau = P_i_tau(C_j_to_i Z_j) - C_j_to_i P_j_tau(Z_j); effective flow is its held-out decrease after receiver action-pair distillation."
@@ -33,6 +34,7 @@ controls:
   - old_canonical_prototype_pullback
   - orthogonal_mode_transfer_r010
   - matched_local_only_audit
+  - matched_parameter_average
 evaluation:
   datasets:
     - controlled_known_map_action_system

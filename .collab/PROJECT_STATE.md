@@ -4,6 +4,15 @@ Updated: 2026-09-06 UTC
 
 ## Research objective
 
+No-aggregation optimization revision (2026-09-06 UTC): R012 removes FedAvg
+from the proposed method. Each client keeps its parameters throughout
+training. The server maintains a sparse Functional Map network and routes
+low-dimensional action pairs; a receiver changes only through the gradient of
+an unsatisfied, reliable, task-compatible transported action equation. The
+directed current is `I_j_to_i = -g_j_to_i grad_theta_i ell_j_to_i`, so it
+vanishes when the equation is learned, rejected by the task gate, or locally
+unrealizable. FedAvg remains an experimental baseline only.
+
 Functional-intertwining revision (2026-09-06 UTC): R011 replaces R010's
 orthogonal response-mode novelty with transported finite-horizon action
 constraints. Pairwise Functional Maps now have a central role: they transport
@@ -18,8 +27,8 @@ constraints rather than forming a model/operator average. See
 The online design is lighter: periodic low-dimensional action sketches,
 pairwise/cycle-consistent Functional Maps, and ordinary distillation replace
 the full response Jacobian, response SVD, receiver-specific orthogonal search,
-and per-round local-only counterfactual. R011 remains `NEEDS_RESEARCH`; the next
-evidence is a frozen CPU known-map action-constraint pilot.
+and per-round local-only counterfactual. R012 remains `NEEDS_RESEARCH`; the next
+evidence is a frozen CPU known-map action-constraint pilot inherited from R011.
 
 Historical R010 operator-selection revision (2026-09-06 UTC): the immediate bottleneck was no
 longer whether the old correction norm decays, but which low-dimensional local
@@ -59,7 +68,7 @@ Matched A and identity-centered P ridge are equivalent (D017), correcting the
 earlier expectation that P alone fixes the surrogate. That literature and
 diagnostic pass is historical evidence under the current R011 gate.
 
-This workspace studies heterogeneous graph federated learning through graph neural dynamics. For client `m`, feature heterogeneity enters primarily through the initial condition `H_m(0)`, while structural heterogeneity changes the graph propagation operator or vector field. The current direction augments FedAvg with a low-dimensional dynamics knowledge channel.
+This workspace studies heterogeneous graph federated learning through graph neural dynamics. For client `m`, feature heterogeneity enters primarily through the initial condition `H_m(0)`, while structural heterogeneity changes the graph propagation operator or vector field. The current candidate replaces parameter aggregation with a low-dimensional Functional Action Flow between persistent local learners.
 
 The active conceptual pipeline is now specified at Method v0 level around
 Functional Map transport and dynamical constraint completion:
@@ -86,7 +95,7 @@ benefit still require controlled validation.
 ## Backbone and evaluation invariants
 
 - Current implementation/comparison backbone: official A-DGN with 16 fixed Euler steps. General native weights are a research candidate, to be identified as a separate backbone variant if implemented.
-- Federation: 10 persistent workers, global broadcast, full-model equal-weight FedAvg by default.
+- Baseline federation: 10 persistent workers, global broadcast, full-model equal-weight FedAvg. The R012 candidate uses the same client population and evaluation budget but has no parameter upload, averaging, or global broadcast after initialization.
 - Optimizer: persistent local Adam state.
 - Evaluation: each client's best-validation round paired with that round's test metric, then mean and client standard deviation.
 - Functional Dynamics is opt-in; disabling it must retain native-backbone behavior.
@@ -131,6 +140,6 @@ Status: the existing Functional Dynamics implementation is engineering-complete 
 5. Verify that ordinary action-pair distillation reduces held-out defect and improves the receiver task without a response parameter Jacobian.
 6. Validate cycle consistency and control wrong/no-map, shuffled, repeated, and task-harmful equations.
 7. Measure communication and wall time against the full response-Jacobian R010 path.
-8. Implement training-time exchange only after these gates, without changing official A-DGN/FedAvg behavior.
+8. Implement training-time exchange only after these gates as a separate opt-in no-aggregation method; keep official A-DGN/FedAvg intact as the comparison baseline.
 
 The active research handoff is recorded in `.collab/NEXT_TASK.md`.

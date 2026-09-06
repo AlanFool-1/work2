@@ -299,3 +299,16 @@ Updated:
 - `.collab/DECISIONS.md` (D006)
 - `.collab/NEXT_TASK.md` (R002, READY_FOR_IMPLEMENTATION)
 - `.collab/PROJECT_STATE.md`
+## 2026-09-06 UTC — R012 removes FedAvg from the candidate method
+
+The human identified that retaining FedAvg would leave parameter averaging as
+the dominant explanation for cross-client learning and convergence. Revised
+the current method into a no-aggregation Functional Action Flow. Clients keep
+persistent local parameters; the server routes Functional Map transported
+action pairs; receiver updates are generated only by task-compatible
+intertwining-residual gradients. Effective flow vanishes when an equation is
+learned, rejected, or locally unrealizable. FedAvg is now a baseline only.
+
+Updated D023, E018, PROJECT_STATE, NEXT_TASK, the R011/R012 method note,
+`methodv0.md`, the weekly report, and the pilot manifest. No source code,
+checkpoint, dataset, or numeric experiment was changed.

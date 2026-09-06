@@ -2,6 +2,41 @@
 
 Updated: 2026-09-06 UTC
 
+## D023 - Remove FedAvg from the proposed Functional Action Flow
+
+Decision:
+
+Do not place Functional Map action transfer on top of a FedAvg training
+lifecycle. In the proposed method, every client retains persistent local
+parameters; no client model is uploaded, averaged, or replaced by a broadcast
+global model after initialization. The server maintains a sparse Functional
+Map network and routes low-dimensional action pairs only. Official A-DGN with
+FedAvg remains an unchanged experimental baseline.
+
+For a reliable, unsatisfied and task-compatible edge `j -> i`, define the
+receiver-space current
+
+`I_j_to_i = -g_j_to_i grad_theta_i (0.5 ||E_j_to_i(theta_i)||^2)`.
+
+The conductance `g_j_to_i` gates a transported action residual; it is not a
+parameter-aggregation weight. Client `i` follows its local task gradient plus
+the sum of incoming action currents. The current vanishes when the transported
+equation is satisfied, rejected by the task gate, or has no receiver-realizable
+gradient. Equilibrium is zero admissible action current, not model consensus.
+
+Reason:
+
+If FedAvg remains the main synchronization mechanism, parameter averaging can
+account for both knowledge exchange and convergence. The dynamics channel then
+becomes an auxiliary regularizer and cannot support the paper's claim that
+federation is a process of finite complementary dynamical knowledge
+absorption. Residual-driven functional coupling makes the proposed knowledge
+object the only cross-client learning mechanism and gives flow cessation an
+algorithmic meaning.
+
+Status: Active research design; R012 amends R011. The known-map pilot remains
+the evidence gate before implementing a full no-aggregation training loop.
+
 ## D022 - Replace orthogonal mode transfer with functional action constraints
 
 Decision:

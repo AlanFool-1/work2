@@ -2,6 +2,28 @@
 
 Updated: 2026-09-06 UTC
 
+## E018 - Preregistered no-aggregation optimization amendment
+
+Date: 2026-09-06 UTC. Design amendment only; no new numeric experiment or
+training run was performed.
+
+R012 removes FedAvg from the proposed method while retaining R011's Functional
+Map action-equation interface. Each client keeps its own model. An accepted
+edge produces a receiver-space gradient current from its held-out
+intertwining defect; the server routes action pairs and never averages model
+parameters. FedAvg and matched parameter averaging are controls rather than
+parts of the candidate method.
+
+The immediate R011 pilot now records the invariant that the proposed path does
+not average parameters and adds a matched parameter-average control where
+architectures permit. It must show that residual-driven action transfer
+selectively repairs transferable missing actions while repeated, harmful,
+wrong-map and shuffled equations do not create comparable flow. This amendment
+does not constitute evidence that the mechanism works.
+
+Status: preregistered, not run. Full no-aggregation graph training remains
+deferred until the known-map action interface passes.
+
 ## E017 - Preregistered Functional Map action-constraint pilot
 
 Date: 2026-09-06 UTC. Study design only; no new numeric experiment or graph

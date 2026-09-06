@@ -2,7 +2,7 @@
 
 日期：2026-09-06 UTC
 
-状态：学习过程思想已形成；算法骨架修正为 Functional Map 运输下的动力学作用方程补全，尚待受控实验验证。
+状态：学习过程思想已形成；算法骨架修正为无 FedAvg 的 Functional Action Flow，Functional Map 运输动力学作用方程，尚待受控实验验证。
 
 ## 1. 本周核心思想
 
@@ -108,7 +108,17 @@ C_{j\to i}\mathcal P_j^\tau(Z_j).
 
 它衡量“先运输后传播”与“先传播后运输”是否交换。若映射可信、该方程当前未被满足、普通本地反向传播可以学会它、并且更新与本地任务相容，这条方程才是接收方缺失的互补知识。
 
-多个客户端提供的是作用方程集合，而不是待平均的 operator。接收方把小型 action-pair distillation loss 加入普通本地训练，逐步满足仍有价值的外部方程。方程被学会后，留出交换缺陷降到零；若剩余方程与本地任务冲突，则不再吸收。最终平衡仍允许必要的本地结构差异。
+多个客户端提供的是作用方程集合，而不是待平均的模型或 operator。候选方法不再执行 FedAvg：客户端参数始终留在本地，服务器只维护 Functional Map 网络并路由 action pairs。接收方把小型 action-pair distillation loss 加入本地任务训练，逐步满足仍有价值的外部方程。
+
+对边 \(j\to i\)，定义任务相容的作用流
+
+\[
+I_{j\to i}
+=-g_{j\to i}\nabla_{\theta_i}
+\frac12\|E_{j\to i}(\theta_i)\|^2,
+\]
+
+其中 \(g_{j\to i}\) 由映射可信度、留出缺陷和任务梯度相容性控制。客户端沿本地任务梯度与所有入流之和更新。方程被学会后 \(E\to0\)，任务冲突时 \(g=0\)，不可实现时缺陷梯度为零，因此跨客户端作用自然停止。最终平衡要求有效作用流归零，不要求参数一致，也不依赖全局模型。
 
 这一修正也明显减轻了在线计算：不构造完整响应 Jacobian，不做响应 SVD 和接收方正交子空间搜索，也不在每轮运行 local-only counterfactual。Functional Map 与少量 action pairs 可以隔若干联邦轮次更新；matched local-only 只用于早/中/晚 checkpoint 的离线机制审计。
 
@@ -161,11 +171,12 @@ C_{j\to i}\mathcal P_j^\tau(Z_j).
 2. descriptor/cycle learned map；
 3. wrong map；
 4. identity/no-map；
-5. 旧 canonical prototype pullback 与 R010 正交模态传输。
+5. 旧 canonical prototype pullback 与 R010 正交模态传输；
+6. 等更新预算的参数平均，仅作为 FedAvg 型对照。
 
 映射只使用 descriptor 与 cycle split 估计，作用交换缺陷使用未参与映射拟合的 probes/horizons 评估。接收方随后用普通 action-pair distillation 学习外部方程，记录 map/cycle error、留出缺陷下降、任务变化、梯度相容性、通信量与运行时间。
 
-只有 learned map 能在留出数据上接近 ground truth、正确运输的可迁移方程同时降低缺陷和任务损失、重复与有害方程自然停止、wrong/no-map 和 source/time shuffle 不能复现时，才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。
+只有 learned map 能在留出数据上接近 ground truth、正确运输的可迁移方程同时降低缺陷和任务损失、重复与有害方程自然停止、wrong/no-map、source/time shuffle 和参数平均不能复现这种选择性时，才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。
 
 若 descriptor/cycle 信息不能辨识有效 Functional Map，或者 ground-truth map 下的来源方程仍不能改善接收方任务，则停止扩展算法，返回跨客户端语义对应或知识可迁移性问题。
 
