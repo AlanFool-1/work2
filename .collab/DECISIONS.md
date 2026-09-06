@@ -2,6 +2,32 @@
 
 Updated: 2026-09-06 UTC
 
+## D024 - Cosine compatibility is not sufficient evidence of external value
+
+Decision:
+
+Retain R011's Functional Map transport and finite-horizon action equations,
+but reject R012's rule that a reliable map, nonzero defect, and positive
+task/constraint gradient cosine are sufficient to open a knowledge-flow edge.
+Cosine may remain a cheap prefilter. The next gate must estimate incremental
+guard benefit over an equal-norm local-only candidate step on data disjoint
+from action fitting and final evaluation.
+
+Evidence:
+
+The corrected five-seed known-map pilot passed 7/11 preregistered checks. In
+the clean learned-map condition it recovered the map, separated the three
+action classes initially, and reduced transferable defects by 94%-96%.
+However, structure-only local learning was already sufficient: local-only
+reduced the relevant defect more than action flow, while cosine remained about
+0.825 and admitted a redundant external update. Source/time-shuffled actions
+also obtained positive cosine during some steps and caused large task damage
+before their currents stopped. A dissipated residual can therefore mean that
+the receiver fitted a bad equation, not that useful knowledge was exhausted.
+
+Status: Active negative result. R012 is not ready for graph training. R013 must
+test a low-frequency matched one-step guard counterfactual on the same system.
+
 ## D023 - Remove FedAvg from the proposed Functional Action Flow
 
 Decision:
@@ -34,8 +60,8 @@ absorption. Residual-driven functional coupling makes the proposed knowledge
 object the only cross-client learning mechanism and gives flow cessation an
 algorithmic meaning.
 
-Status: Active research design; R012 amends R011. The known-map pilot remains
-the evidence gate before implementing a full no-aggregation training loop.
+Status: The no-FedAvg invariant remains active. The R012 cosine-gated
+realization was rejected by D024/E019 before a full training loop.
 
 ## D022 - Replace orthogonal mode transfer with functional action constraints
 
@@ -69,8 +95,9 @@ only as an offline causal audit. Estimate Functional Maps on descriptor/cycle
 data and evaluate dynamics defects on held-out probes or horizons to avoid a
 circular commutativity fit.
 
-Status: Active research design; R011 `NEEDS_RESEARCH`. R010/D021 remains a
-historical candidate and its finite-time response measurements may be reused as
+Status: R011 interface retained with limited known-map support from E019;
+task-beneficial admission remains `NEEDS_RESEARCH` under R013. R010/D021
+remains historical and its finite-time response measurements may be reused as
 diagnostics.
 
 ## D021 - Select a response operator before testing knowledge-flow exhaustion

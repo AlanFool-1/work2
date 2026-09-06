@@ -4,6 +4,25 @@ Updated: 2026-09-06 UTC
 
 ## Research objective
 
+R012 controlled-pilot result (2026-09-06 UTC): the current cosine-gated
+no-aggregation optimizer is **not supported**. A corrected five-seed CPU pilot
+used disjoint descriptor-fit, action-gate, and action-test probes and recomputed
+the gate on every receiver step. It passed 7/11 preregistered checks. The
+descriptor-only Functional Map was accurate (`0.0017 +/- 0.0006` relative map
+error), and the clean learned-map gate accepted transferable actions in 100%
+of cells while rejecting satisfied and harmful actions. Learned action flow
+reduced the true transferable defect by roughly 94%-96%.
+
+The optimization rule failed two decisive cases. In structure-only, local-only
+already reduced the transferable defect by 98.1%, yet cosine `0.825 +/- 0.028`
+kept the redundant external flow open and produced much worse task error.
+Source/time-shuffled equations also passed the cosine gate during some steps
+and damaged all three regimes before flow decayed. Thus defect dissipation and
+zero terminal current do not establish beneficial absorption. Retain the R011
+Functional Map/action interface; replace cosine-only acceptance with a
+disjoint-guard estimate of incremental gain over a matched local-only step
+before any graph training. Evidence is in E019 and the timestamped run log.
+
 No-aggregation optimization revision (2026-09-06 UTC): R012 removes FedAvg
 from the proposed method. Each client keeps its parameters throughout
 training. The server maintains a sparse Functional Map network and routes
@@ -27,8 +46,9 @@ constraints rather than forming a model/operator average. See
 The online design is lighter: periodic low-dimensional action sketches,
 pairwise/cycle-consistent Functional Maps, and ordinary distillation replace
 the full response Jacobian, response SVD, receiver-specific orthogonal search,
-and per-round local-only counterfactual. R012 remains `NEEDS_RESEARCH`; the next
-evidence is a frozen CPU known-map action-constraint pilot inherited from R011.
+and per-round full-training local-only counterfactual. R013 remains
+`NEEDS_RESEARCH`; the next evidence is a low-frequency, matched one-step guard
+comparison in the same known-map system.
 
 Historical R010 operator-selection revision (2026-09-06 UTC): the immediate bottleneck was no
 longer whether the old correction norm decays, but which low-dimensional local
@@ -140,6 +160,6 @@ Status: the existing Functional Dynamics implementation is engineering-complete 
 5. Verify that ordinary action-pair distillation reduces held-out defect and improves the receiver task without a response parameter Jacobian.
 6. Validate cycle consistency and control wrong/no-map, shuffled, repeated, and task-harmful equations.
 7. Measure communication and wall time against the full response-Jacobian R010 path.
-8. Implement training-time exchange only after these gates as a separate opt-in no-aggregation method; keep official A-DGN/FedAvg intact as the comparison baseline.
+8. Do not implement training-time exchange until R013 rejects redundant and shuffled action equations using incremental guard gain; keep official A-DGN/FedAvg intact as the comparison baseline.
 
 The active research handoff is recorded in `.collab/NEXT_TASK.md`.

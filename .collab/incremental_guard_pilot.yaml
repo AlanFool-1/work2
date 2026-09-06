@@ -1,0 +1,67 @@
+study_id: functional-action-incremental-guard-r013
+claim: "A disjoint-task-guard comparison between equal-norm local-only and local-plus-action candidate steps retains genuinely complementary Functional Map action equations while rejecting locally redundant and source/time-shuffled equations before material task damage."
+stage: design
+code:
+  project: /opt/data/private/xzc/work2/backbone_functional_dynamics_stable
+  environment: torch
+  commit_or_diff: "Base the implementation on corrected R012 pilot commit 041cfbd and record the exact new commit in every run config."
+intervention:
+  axis: joint
+  family: "Known-map feature-underexcitation, structure-gap, and joint systems with satisfied, transferable, harmful, redundant-local, and source/time-shuffled action equations."
+  levels: [feature_only, structure_only, joint]
+  invariants:
+    - paired_receiver_initialization
+    - equal_candidate_update_norm
+    - equal_local_compute_budget
+    - descriptor_fit_action_fit_task_guard_final_test_separation
+    - identical_action_probe_and_horizon_budget
+    - no_parameter_averaging_in_proposed_path
+mediator:
+  name: one_step_incremental_guard_gain
+  definition: "Ghat_j_to_i = L_guard(theta + Delta_local) - L_guard(theta + Delta_local_plus_action), where both candidate parameter changes are norm matched and generated from the same frozen receiver state."
+controls:
+  - ordinary_laplacian
+  - matched_encoder_block
+  - matched_classifier_block
+  - matched_random_block
+  - local_only
+  - r012_cosine_only_gate
+  - ground_truth_functional_map
+  - descriptor_only_learned_map
+  - wrong_functional_map
+  - identity_no_map
+  - source_time_shuffle
+  - repeated_satisfied_constraint
+  - locally_redundant_constraint
+  - task_harmful_constraint
+  - norm_matched_parameter_average
+evaluation:
+  datasets:
+    - controlled_known_map_action_system
+    - Synthetic_feature_shift
+    - Synthetic_structure_homophily
+    - Synthetic_mixed
+  seeds: [11, 23, 37, 42, 59]
+  checkpoints: [frozen_pilot]
+  fit_split: "Functional Maps use descriptor-fit data; action equations use action-fit probes. Neither may use task-guard or final-test data."
+  test_split: "One-step admission uses an independent task-guard split. All reported task and defect outcomes use a fourth untouched final-test split."
+  metrics:
+    - one_step_incremental_guard_gain
+    - gate_acceptance_by_action_class
+    - final_task_change_vs_local_only
+    - heldout_intertwining_defect_reduction
+    - false_acceptance_before_task_damage
+    - flow_decay_ratio
+    - communication_bytes
+    - gate_wall_time
+decision_rule: "Advance only if the incremental guard accepts transferable actions in at least 80% of seed/regime cells, accepts satisfied, harmful, locally redundant, and shuffled actions in at most 20%, preserves positive final-test gain in feature-only and joint, causes no material loss relative to local-only in structure-only, and adds less than 20% wall time over R012 on the controlled system."
+failure_pattern: "Reject or narrow the action-equation sufficiency claim if guard gain does not generalize to final-test behavior, if source/time shuffle is accepted before damage, if structure-only redundancy remains open, or if the guard requires a full local-training fork rather than a bounded one-step check."
+compute:
+  workers: 1
+  devices: CPU
+  timeout_minutes: 30
+  candidate_steps_per_gate: 1
+  recalibration: "Evaluate the guard periodically; sweep fixed intervals [1, 5, 10] only as a reported cost/safety sensitivity, without selecting on final-test loss."
+outputs:
+  run_tag: functional_action_incremental_guard_r013_five_seed
+  directory: "Use a new timestamped directory under backbone_functional_dynamics_stable/run_logs; never overwrite R012 artifacts."

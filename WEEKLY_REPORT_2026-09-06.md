@@ -2,7 +2,7 @@
 
 日期：2026-09-06 UTC
 
-状态：学习过程思想已形成；算法骨架修正为无 FedAvg 的 Functional Action Flow，Functional Map 运输动力学作用方程，尚待受控实验验证。
+状态：学习过程思想已形成；Functional Map 作用方程接口得到合成实验初步支持，但无 FedAvg 的 R012 梯度余弦门控未通过受控实验，暂不进入真实图训练。
 
 ## 1. 本周核心思想
 
@@ -151,43 +151,61 @@ I_{j\to i}
 
 这些结果支持因果响应可测、有限步误差具有局部二阶规律以及本地可实现性会决定停止流动。它们尚未证明响应与任务相关，也没有证明真实外部知识增益会随训练耗尽。
 
+### 5.4 无参数聚合作用流：5-seed 已知映射实验
+
+本周进一步实现了一个不接入 production aggregator 的 CPU 受控实验。实验使用 6 维稳定线性动力学、5 个随机种子和已知跨客户端正交 Functional Map；descriptor 拟合、在线门控和最终 action 测试分别使用互不重叠的 probes。三类来源作用分别是已掌握、接收方缺失且任务有益、以及任务有害。候选方法不进行参数平均；对照包括 local-only、wrong/identity map、source/time shuffle、未门控有害传输和等更新范数的映射后参数平均。
+
+学得映射的相对误差为 `0.0017 ± 0.0006`，留出 descriptor error 为 `0.0051 ± 0.0005`；wrong 和 identity map 的留出误差分别为 `1.3702 ± 0.1986` 和 `1.3727 ± 0.1575`。在未破坏语义的 learned-map 条件下，可迁移作用在 feature、structure 和 joint 三种设置中均被 100% 接受，已掌握和有害作用均为 0%。这说明 descriptor-only Functional Map 与 held-out intertwining defect 在该干净系统中能够识别“当前未满足的作用方程”。
+
+接收方运行 60 个逐步重算门控的吸收步后，结果如下。任务误差越低越好；相对变化按每个种子相对其 paired local-only 计算。
+
+| 设置 | local-only 任务 MSE | learned action flow MSE | 相对 local-only 变化 | 可迁移缺陷下降 | 最终/初始流量 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| feature-only | `6.87e-5` | `1.43e-5` | `-81.8% ± 15.6%` | `94.9% ± 1.2%` | `0.014 ± 0.014` |
+| structure-only | `3.36e-6` | `1.96e-4` | `+5518% ± 1803%` | `96.2% ± 0.8%` | `0.0045 ± 0.0016` |
+| joint | `1.87e-4` | `4.58e-5` | `-70.0% ± 29.5%` | `93.9% ± 1.8%` | `0.197 ± 0.399` |
+
+feature-only 和 joint 中，外部作用显著加速了本地欠激发方向的学习；等范数参数平均在这两种设置中反而比 local-only 更差。structure-only 给出关键反例：local-only 已把可迁移缺陷降低 `98.1%`，比 action flow 的 `96.2%` 更充分，但初始任务/方程梯度余弦仍为 `0.825 ± 0.028`，导致冗余外部作用持续被接收，最终任务误差约为 local-only 均值的 58 倍。
+
+source/time shuffle 暴露了第二个失败。即使每步重算门控，打乱方程仍会在部分阶段得到正梯度余弦；最终任务 MSE 分别达到 `2.54e-3`、`3.99e-3` 和 `6.73e-3`，均显著差于 local-only。未门控有害传输也在三种设置中全部造成负收益。说明一个错误作用可以先降低自己的交换缺陷、随后流量归零，却已经损害本地任务。因此“缺陷耗散并停止”本身不能证明知识被正确吸收。
+
+预注册的 11 项门槛通过 7 项，R012 当前结论为 **not supported**。保留的是 Functional Map 运输与 action-pair 可学习性；被否定的是用“映射可靠 + 缺陷非零 + 梯度余弦为正”充分决定知识流。完整记录位于 `backbone_functional_dynamics_stable/run_logs/functional_intertwining_r012_dynamic_gate_five_seed_20260906_071930/`。
+
 ## 6. 当前判断
 
-本周证据支持把问题从“表示距离”进一步改写为“作用方程是否可运输和可学习”，但 R011 尚未得到实验支持：
+本周证据支持把问题从“表示距离”进一步改写为“作用方程是否可运输和可学习”，同时否定了 R012 当前的简单门控：
 
 - 当前自治 ridge generator 的稳态拟合残差约为 `0.276–0.727`，尚无留出时间或端口响应证据，不能继续默认代表本地动力学；
 - 匹配目标下的连续 \(A\) 与 \(P=I+hA\) 代数等价，单纯换成离散传播子不增加表达能力；
 - 因果响应核已经通过 zero-port、因果性和 AD/有限差分一致性检查，说明它可被可靠测量；
 - 现有 Functional Map solver 已包含算子交换残差，但目前只用于对齐 canonical generator；新设计把它提升为知识缺陷，并必须用独立 probes/horizons 防止循环验证；
 - 因果响应微型检查说明有限时域作用可以被可靠测量，但尚未证明 map 语义、方程补全或任务收益。
+- 已知映射实验表明 descriptor-only map 可以运输并学习正确 action equations，但正梯度余弦不能区分“真正增加外部信息”与“本地已经能学会的冗余方程”；
+- 动态重算余弦门控仍不能及时拒绝 source/time-shuffled 方程，说明流量衰减可能是错误约束被拟合后的停止，不能单独作为联邦自足证据。
 
-因此，当前优先级是验证 Functional Map 能否把一条来源动力学作用关系正确搬到接收方，以及普通 action-pair distillation 能否让接收方真正学会它。R010 的响应 SVD 和正交缺失模态不再作为主机制。
+因此，Functional Map 和 action pairs 暂时保留，下一问题收缩为：如何用独立本地 guard 估计外部方程相对等预算 local-only 的增量价值。R010 的响应 SVD 和正交缺失模态不再作为主机制，R012 的余弦门控也不再视为充分条件。
 
 ## 7. 下一步最小实验
 
-第一阶段构造具有已知跨客户端 Functional Map 的稳定受控系统，并设置三类作用：已经掌握、可迁移但接收方缺失、对接收方任务有害。比较：
+下一步不进入真实图 checkpoint，而是在同一已知映射系统上替换门控。对同一冻结接收方构造两个等更新范数的虚拟一步：local-only 与 local-plus-action，并在独立 task guard 上定义
 
-1. ground-truth Functional Map；
-2. descriptor/cycle learned map；
-3. wrong map；
-4. identity/no-map；
-5. 旧 canonical prototype pullback 与 R010 正交模态传输；
-6. 等更新预算的参数平均，仅作为 FedAvg 型对照。
+\[
+\widehat G_{j\to i}^{1\text{-step}}
+=L_i^{\mathrm{guard}}(\theta_i+\Delta_i^{\mathrm{local}})
+-L_i^{\mathrm{guard}}(\theta_i+\Delta_{j\to i}^{\mathrm{flow}}).
+\]
 
-映射只使用 descriptor 与 cycle split 估计，作用交换缺陷使用未参与映射拟合的 probes/horizons 评估。接收方随后用普通 action-pair distillation 学习外部方程，记录 map/cycle error、留出缺陷下降、任务变化、梯度相容性、通信量与运行时间。
-
-只有 learned map 能在留出数据上接近 ground truth、正确运输的可迁移方程同时降低缺陷和任务损失、重复与有害方程自然停止、wrong/no-map、source/time shuffle 和参数平均不能复现这种选择性时，才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。
-
-若 descriptor/cycle 信息不能辨识有效 Functional Map，或者 ground-truth map 下的来源方程仍不能改善接收方任务，则停止扩展算法，返回跨客户端语义对应或知识可迁移性问题。
+只有 \(\widehat G_{j\to i}^{1\text{-step}}>\varepsilon_G\) 时才打开作用流。该检查每隔若干本地阶段进行一次，不运行完整 local-only 训练分叉。它必须同时做到：保留 feature/joint 中的正增益，拒绝 structure-only 的冗余方程，并在产生明显任务损害前拒绝 source/time shuffle。若独立 guard 仍不能实现这三点，则“仅凭低维作用方程判断有益知识”的假设需要进一步收缩。
 
 ## 8. 复现信息
 
-- 当前设计起点提交：`f7b8670`；R010 与 R011 修正文档由本周后续提交记录。工作树仍有两个此前存在的文档删除。
+- 当前无聚合设计提交：`6539e43`；pilot 实现提交：`e359d42`；独立 gate/test 与动态门控修正：`041cfbd`。工作树仍有两个此前存在的文档删除。
 - 11 数据集结果与诊断：`.collab/EXPERIMENTS.md` 的 E003。
 - 因果响应数值检查：`.collab/EXPERIMENTS.md` 的 E013 与 `.collab/DYNAMICAL_RESPONSE_CHECKS.md`。
 - 当前方法规范：`methodv0.md`。
 - 当前 R011 规范：`.collab/FUNCTIONAL_INTERTWINING_DYNAMICS.md`。
 - 历史 R010 算子选择：`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`。
-- 当前执行 handoff：`.collab/NEXT_TASK.md`，R011，`NEEDS_RESEARCH`。
+- 当前执行 handoff：`.collab/NEXT_TASK.md`，R013，`NEEDS_RESEARCH`。
+- R012 五种子正式结果：`backbone_functional_dynamics_stable/run_logs/functional_intertwining_r012_dynamic_gate_five_seed_20260906_071930/`，CPU `38.8 s`，每个来源校准包 `5472 bytes`；尚未与 R010 实测成本比较。
 - 回顾性流量分析命令：`python3 backbone_functional_dynamics_stable/scripts/analyze_flow_decay.py`。
 - 本周没有启动新 GPU 训练，没有修改 production source、checkpoint 或数据。

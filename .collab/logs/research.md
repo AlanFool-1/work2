@@ -1,5 +1,19 @@
 # Research Agent Log
 
+## 2026-09-06 UTC — R012 controlled pilot falsifies cosine-only gating
+
+Ran a corrected five-seed CPU known-map pilot with disjoint descriptor-fit,
+action-gate, and final-test probes and per-step dynamic gates. The learned map
+and action-equation interface worked in the clean system, but the optimization
+rule did not: structure-only external flow was redundant relative to
+local-only, and source/time shuffle caused severe task damage before stopping.
+The preregistered outcome was NOT SUPPORTED (7/11 checks).
+
+Recorded D024, E019, R013, the weekly-report result table, and the Method v0
+warning. The next discriminating experiment is an independent-guard one-step
+incremental-gain gate. No graph dataset, GPU run, production aggregator,
+checkpoint, or existing artifact was modified.
+
 ## 2026-09-06 UTC — R011 Functional Map action constraints
 
 The human identified that R010 still resembled a personalized orthogonal

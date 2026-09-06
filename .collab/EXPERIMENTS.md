@@ -2,6 +2,55 @@
 
 Updated: 2026-09-06 UTC
 
+## E019 - Five-seed known-map Functional Action Flow pilot
+
+Date: 2026-09-06 UTC. Corrected CPU mechanism pilot; no graph dataset or GPU
+training was run.
+
+The formal run used seeds `[11, 23, 37, 42, 59]`, stable rank-6 linear
+dynamics, disjoint descriptor-fit/action-gate/action-test probes, and a gate
+recomputed at every receiver step. The proposed conditions performed no model
+or parameter averaging. Controls were local-only, ground-truth/learned/wrong/
+identity maps, source/time shuffle, ungated harmful transfer, and a norm-matched
+map-aware parameter average.
+
+The learned Functional Map achieved relative map error `0.0017 +/- 0.0006` and
+held-out descriptor error `0.0051 +/- 0.0005`. Under the clean learned map,
+transferable actions were initially accepted in 100% of seed/regime cells;
+satisfied and harmful actions were accepted in 0%. Learned action flow reduced
+the true transferable defect by `94.9%`, `96.2%`, and `93.9%` in feature-only,
+structure-only, and joint settings.
+
+Task evidence was mixed and falsified the current gate. Relative to paired
+local-only task MSE, learned action flow improved feature-only by
+`81.8% +/- 15.6%` and joint by `70.0% +/- 29.5%`, but structure-only task error
+increased by `5518% +/- 1803%`. In structure-only, local-only already reduced
+the same transferable defect by `98.1%`, yet the initial cosine remained
+`0.825 +/- 0.028`; the gate therefore confused a compatible equation with
+incrementally valuable external knowledge. Source/time-shuffled constraints
+also became active during training and damaged all regimes. Terminal flow
+nevertheless approached zero, demonstrating that flow cessation alone can
+follow harmful constraint fitting.
+
+The preregistered decision was `NOT SUPPORTED` with 7/11 checks passing. The
+Functional Map/action interface survives as a candidate; cosine-only flow
+acceptance does not. The cost comparison against R010 remains unevaluated.
+
+Evidence:
+
+- corrected run: `backbone_functional_dynamics_stable/run_logs/functional_intertwining_r012_dynamic_gate_five_seed_20260906_071930/`
+- implementation commit: `041cfbd`
+- wall time: `38.8 s` CPU
+- transmitted calibration payload in this pilot: `5472 bytes` per source
+
+An earlier run at
+`backbone_functional_dynamics_stable/run_logs/functional_intertwining_r012_five_seed_20260906_071613/`
+fixed the gate for all 60 steps and reused the action-test probes for gating.
+It is retained as an implementation diagnostic and is not the reported
+decision run.
+
+Status: R012 not supported; R013 research required.
+
 ## E018 - Preregistered no-aggregation optimization amendment
 
 Date: 2026-09-06 UTC. Design amendment only; no new numeric experiment or
@@ -49,8 +98,9 @@ distillation lowers both defect and task loss for transferable actions, and
 wrong/shuffled/harmful controls do not reproduce the benefit. The pilot must
 also demonstrate lower cost than the full response-Jacobian path.
 
-Status: preregistered, not run. Production aggregation and graph training
-remain deferred.
+Status: executed in E019 after adding a disjoint online-gate split and dynamic
+gate recomputation. R012 was not supported; production aggregation and graph
+training remain deferred.
 
 ## E016 - Preregistered low-dimensional dynamics operator selection
 

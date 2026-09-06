@@ -6,7 +6,33 @@ Owner: research-agent (xzc, temporary research takeover explicitly requested by 
 
 Updated: 2026-09-06 UTC
 
-Handoff: R012
+Handoff: R013
+
+## Incremental-guard gate after R012 falsification — 2026-09-06 UTC
+
+The corrected five-seed known-map pilot did not support R012's cosine-only
+acceptance rule (7/11 checks). Functional Map recovery, clean three-class
+separation, and action-defect reduction passed. Two failures are decisive:
+structure-only local training already learned the action better but positive
+cosine admitted redundant flow; source/time-shuffled constraints became
+temporarily cosine-compatible and caused task damage before their currents
+decayed. See E019.
+
+Retain the pairwise Functional Map and action-pair interface. Do not implement
+the production no-aggregation loop or run real graph checkpoints. The next
+experiment stays in the known-map system and replaces cosine as the sufficient
+gate. From one frozen receiver state, construct equal-norm local-only and
+local-plus-action candidate steps, evaluate both on an independent local task
+guard, and define one-step incremental gain as the guard loss of local-only
+minus the guard loss of local-plus-action. Cosine may be used only as a
+prefilter.
+
+Acceptance requires the new gate to preserve the feature/joint benefit, reject
+the structure-only redundant equation, and reject source/time shuffle before
+material task damage. Use five seeds and action-fit, gate, task-guard, and
+final-test splits with no overlap. If it fails, narrow the claim that low-
+dimensional action equations alone can identify useful external knowledge.
+The preregistered study is `.collab/incremental_guard_pilot.yaml`.
 
 ## No-FedAvg Functional Action Flow amendment — 2026-09-06 UTC
 
