@@ -4,6 +4,45 @@ Updated: 2026-09-05 UTC
 
 Raw logs remain under `logs/` and code-local `run_logs/`. This file stores only evidence needed for research decisions.
 
+## E014 - Targeted multi-system dynamics literature study
+
+Date: 2026-09-05 UTC. Research evidence only, not a graph training experiment.
+
+Read methods of Hamiltonian meta-learning (ICLR 2021, cross-parameter;
+ICLR 2024, cross-system-type few-shot adaptation), MP-NODE (NeurIPS 2022,
+homogeneous coupled modules), and NCF (ICLR 2025, context self-modulated fields).
+Compared CoDA, GG-ODE, GREAT and LEADS. Primary-source links, assumption
+boundaries and project-specific inferences are in
+`.collab/MULTISYSTEM_DYNAMICS_LITERATURE.md`.
+
+Structured generators and learned dynamical interfaces are useful references;
+none validates the current autonomous proxy or directly solves private graph
+knowledge exchange. Keep backbone choice open and require independent task
+evidence beyond fitting self-generated trajectories. R008 NEEDS_RESEARCH.
+
+## E013 - CPU audit: ridge equivalence, native causal response and realization
+
+Date: 2026-09-05 UTC. Seed 20260905, CPU float64, one thread. Complete diagnostic
+and reproduction command: `.collab/DYNAMICAL_RESPONSE_CHECKS.md`.
+
+| Check | Result |
+| --- | --- |
+| Actual A ridge versus matched P ridge | `||P-I-hA||_F = 2.162e-16` |
+| Native 16-step forward versus composed native steps | maximum error `0` |
+| Native causal kernel AD versus central difference | relative error `4.025e-11` |
+| Future intervention affecting earlier outputs | maximum response `0` |
+| Perturbation remainder as radius halves | approximately fourfold reduction |
+| Separate toy feasible conservative flow | linear conservation residual `6.360e-17` |
+| Toy nonlinear finite update | quadratic conservation drift; four tested energy changes negative |
+| Orthogonal reachable response directions | zero conservative update despite nonzero disagreement |
+
+Changing A to identity-centered P is not an expressivity fix. Exact discrete
+response is measurable without the old proxy on this random-initialized
+12-node model. Local feasibility changes conservative-flow equilibria and
+finite realization is not exactly conservative. No task benefit, trained-model
+coverage, privacy or training-cost conclusion follows. The flow toy is not the
+graph response model. No production source, checkpoints or training changed.
+
 ## E001 - Official A-DGN + FedAvg real-dataset baseline
 
 ### Configuration
@@ -123,3 +162,281 @@ The following values are medians over the last 20% of rounds. `Basis overlap` is
 ### Decision
 
 Keep the current handoff at `NEEDS_RESEARCH`. The next research step should first decide whether to test genuinely adaptive prototypes with a meaningful switch threshold or simplify the method, then specify matched controls that isolate cross-client transfer from regularization and local dynamics effects.
+
+## E008 - Method v0 conservative dynamical knowledge-flow specification
+
+### Scope
+
+Research specification only; no source modification, new training run, or new
+test was performed in this entry.
+
+### Result
+
+`methodv0.md` restores conservative dynamical knowledge flow as the single
+paper-level story. It defines a client dynamical state, a task-relevant
+response observation after cross-graph transport, a frozen-exchange conserved
+weighted first moment, a response heterogeneity energy, a conservative flux,
+local admissibility, and a realization residual linking public flow back to the
+local graph system.
+
+The ideal fixed-coordinate flow satisfies
+
+\[
+\sum_m p_mJ_m=0,
+\qquad
+\frac{d\mathcal E_{\mathrm{het}}}{d\tau}
+=-2\kappa\mathcal E_{\mathrm{het}}.
+\]
+
+These equations are an analytical baseline, not evidence of task improvement
+or a replacement name for ordinary consensus. The implementation claim is
+conditional on a non-degenerate task-relevant observation operator, measurable
+transport/realization error, and local admissibility constraints.
+
+### Next validation question
+
+Choose one concrete observation operator, admissibility approximation, and
+local realization method. Then test whether the complete loop produces
+conserved exchange, reduced task-relevant response energy, bounded realization
+error, and task behavior consistent with the claimed mechanism.
+
+## E009 - Method v0 toy conservative exchange
+
+### Configuration
+
+- 10 clients, 6-dimensional fixed transported dynamical states, equal weights;
+- \(\delta\tau=0.25\), \(\kappa=0.4\), 20 exchange steps;
+- one fully connected interaction graph and one graph with two admissible
+  client groups; symmetric edge gates;
+- no graph Laplacian construction, SVD, model training, or node-level state.
+
+### Results
+
+| Interaction graph | Initial energy | Final energy | Final/initial | Monotone steps | Max conservation residual |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Fully connected | 4.69634122 | 0.06941607 | 0.01478088 | 20/20 | `4.25e-17` |
+| Two admissible groups | 4.69634122 | 3.28964478 | 0.70046971 | 20/20 | `7.49e-17` |
+
+The fully connected ratio matches \((1-\kappa\delta\tau)^{40}=0.9^{40}\).
+The gated case keeps a nonzero cross-group residual while decreasing energy at
+every step. This is an initial mechanism result for the exchange layer only;
+it does not establish graph task improvement or validate the local realization.
+
+### Decision use
+
+The result supports advancing Method v0 to a minimal opt-in implementation.
+The first implementation experiment should test whether the same conservation,
+energy, and non-consensus behavior survives after trajectory measurement,
+Functional Map transport, local low-rank realization, and local task training.
+
+## E010 - Low-dimensional generator fit is the current bottleneck
+
+### Observation
+
+The current ridge generator fits one-step velocities on the calibration window.
+The 11-dataset steady-state median errors range from `0.276` to `0.727`.
+Generator fit quality does not visibly align with the recorded task gains, and
+the current logs do not contain held-out time-block or multi-step rollout
+errors.
+
+### Interpretation
+
+These values are too large to treat the generator as validated transferable
+dynamical knowledge. They may reflect nonlinear vector fields, basis projection
+loss, finite-difference noise, hidden time variation, or a mismatch between an
+autonomous linear generator and the actual Euler transition. The exchange-layer
+result E009 therefore cannot be combined with current generator logs to claim a
+graph task result.
+
+### Research action
+
+Compare the current continuous generator against a directly fitted discrete
+propagator and an affine propagator using convex ridge objectives. Evaluate on
+held-out time blocks, multi-step rollouts, trajectory statistics, transport
+residuals, and local task behavior. A small neural residual is a later
+nonconvex diagnostic only if the convex candidates fail.
+
+### Status
+
+Implementation is paused at R007 until probe response transport and realization
+pass the validation gate.
+
+## E011 - Public state redefined as common-probe finite-time response
+
+### Research decision
+
+Following the generator-fit diagnosis, Method v0 no longer uses the artificial
+state `vec(z_m^0) || vec(A_m)` as the primary exchanged knowledge. A fixed public
+probe bank is transported into each client, propagated by the actual finite
+time graph dynamics, transported back, and vectorized across probe/time
+responses. This response state directly represents the behavior of each graph
+system under the same stimulus.
+
+### Consequence
+
+The current generator error becomes a compression diagnostic. A large error no
+longer invalidates direct response exchange, but it blocks replacing raw
+responses with a generator unless held-out probe rollout passes. Local
+realization is measured by a response Jacobian and a constrained convex solve,
+then checked with an actual post-update rollout.
+
+### Status
+
+Conceptual update only; no source or new graph training run. R007 remains
+`NEEDS_RESEARCH` until probe response transport and realization are validated.
+
+## E012 - Causal response-kernel candidate
+
+### Research update
+
+The public-probe response idea is refined into a causal kernel: inject a
+specified dynamical perturbation through an explicit port at time `s`, observe
+the task-relevant response at time `t`, and retain the port, `s`, `t`, output
+semantics, and sign. The kernel is obtained from the actual ODE/Euler
+variational dynamics, rather than from an autonomous low-dimensional generator.
+
+### Why this addresses E010
+
+The generator's `0.276-0.727` in-window residual no longer invalidates the
+knowledge object, because the kernel directly measures finite-time response.
+The generator, discrete operator, and neural model remain optional compression
+comparisons and must pass held-out kernel-response validation.
+
+### Next check
+
+On a frozen synthetic graph/model, verify zero-port equivalence, future-to-past
+causality, float64 AD versus centered finite differences, nonlinear remainder
+versus perturbation amplitude, response coverage, and finite-step realization
+drift. No large graph Laplacian SVD or node-level SVD is permitted.
+
+### Status
+
+Conceptual candidate only; no source or new graph training run. R008 remains
+`NEEDS_RESEARCH`.
+
+## E004 - Design diagnosis: small effect is structural, not only a prototype issue
+
+### Observation
+
+The current correction is a one-step residual around a server prototype. Its
+steady-state magnitude is only 0.57%-1.32% of the native field, and the
+dissipative projection acts on most datasets. Calibration then turns the
+correction off, so the next native generator is not the generator of the
+controlled system. The implementation is stable, but there is no explicit
+round-to-round objective that minimizes cross-client dynamical dispersion.
+
+### Interpretation
+
+The current design can be viewed as safe transfer rather than dynamical
+consensus. A zero prototype-switch count is a secondary symptom: changing the
+prototype would not by itself create a contraction objective. The shape/speed
+split also makes the shared target intentionally partial, which is reasonable
+for task preservation but cannot support a claim of minimizing full dynamical
+heterogeneity.
+
+### New research direction
+
+Redesign around a measurable heterogeneity energy over effective initial-state
+and vector-field summaries. Use a weighted canonical barycenter and a native
+proximal anchor, so the client update is an explicit contraction toward the
+shared target while retaining a bounded client-native residual. Enforce the
+stability condition on the total effective generator/Euler map. Prototype
+clustering should remain secondary until this contraction claim is tested.
+
+### Status
+
+Research hypothesis only. No source implementation or prototype-control runs
+are authorized by the current handoff until the energy, feedback law,
+non-circular timing, and stability surrogate are fully specified.
+
+## E005 - Review of the conservative dynamical knowledge-flow skeleton
+
+### Assessment
+
+The new high-level document provides a stronger research motivation than the
+current prototype residual: it introduces two time scales, transport before
+exchange, an explicit heterogeneity potential, conservative inter-client flux,
+and an admissible minimum-heterogeneity equilibrium. These are appropriate
+objects for a theory-to-algorithm program.
+
+### Necessary refinement
+
+The condition `sum_m p_m J_m = 0` is conservation of a canonical exchange flux,
+not by itself conservation of dynamical knowledge. A variance energy over raw
+`Xi_m` can be minimized by destructive homogenization and is not yet a measure
+of harmful heterogeneity. The final energy should compare transported
+vector-field/flow responses on shared semantic probe states and include a
+task-preservation or native-residual constraint. Coordinate mismatch must be
+removed before measuring intrinsic disagreement.
+
+### Candidate insight
+
+Define the transferable component as the part of client dynamics that produces
+different responses to the same transported semantic probes. Let the remaining
+client-native component be an admissible residual. Use a task-aware constrained
+gradient flow, or pairwise antisymmetric flux with weighted detailed balance,
+to dissipate only the transferable disagreement. This yields a meaningful
+claim: the harmful component contracts, while intrinsic client individuality is
+not forced to zero.
+
+### Status
+
+High-level skeleton accepted as the current research direction. The knowledge
+object, energy, flux, stability condition, and non-circular timing remain open;
+no source implementation should begin yet.
+
+## E006 - Dissipative correction is not a required high-level principle
+
+The original A-DGN anti-symmetric/dissipative parameterization belongs to the
+backbone's deep continuous-depth stability motivation. The proposed federated
+knowledge-flow problem has a different requirement: reduce a task-aware
+heterogeneity energy over exchange time \(\tau\). These are separate axes.
+
+The current `minimal_dissipative_projection` enforces a negative-semidefinite
+symmetric part on the correction itself, then clips its spectral norm. This
+can remove the positive symmetric component that would move a client toward a
+consensus target, while it still does not prove stability of the nonlinear
+total field. Finite-horizon numerical and gradient behavior should be assessed
+for the actual chosen field. A low-rank fitted \(\|I+\Delta t A_m^{eff}\|\)
+would be only a surrogate, not a certificate for the nonlinear rollout; no
+trust-region or backtracking construction is mandatory at this stage.
+
+Therefore the next high-level design should retain `heterogeneity dissipation`
+as the objective and treat ODE dissipativity as optional implementation
+regularization. Removing or weakening correction dissipativity is a research
+hypothesis that must be compared against the current projection, not an
+immediate source edit.
+
+## E007 - General native weights and a correction-projection counterexample
+
+Date: 2026-09-05 UTC. Code inspection and analytic example only; no experiment
+or test was run for this finding.
+
+The active native field uses the upstream \(W-W^\top-\gamma I\), while
+the correction separately has positive symmetric eigenvalues zeroed before
+spectral clipping. These are distinct constraints. The first is an optional
+backbone inductive bias for the proposed research; the second can exclude a
+useful correction even when the resulting system remains stable.
+
+For a scalar native field \(\dot h=-2h\) and target \(\dot h=-h\), the
+required correction is \(+h\). The code's dissipative projection maps this
+scalar correction to zero. Applying the unprojected correction instead gives
+the stable target system. At Euler step size 0.1 both original and target maps
+have factors 0.8 and 0.9, respectively, so the example also holds discretely.
+It establishes that correction dissipativity is not necessary for stable
+alignment, not that removing projection will improve the recorded datasets.
+
+The observed small injection cannot be causally attributed to positive
+eigenvalue removal from the available aggregate diagnostics. Beta, subsequent
+spectral clipping, subspace coverage, and action on visited states also matter.
+The proposed high-level flow does not require antisymmetric native weights.
+
+Evidence: the upstream graph_heteropily/models/antisymmetric_dgn.py, and the
+active backbone_functional_dynamics_stable/models/s0/model.py and
+models/dissipative_injector.py.
+
+Scope correction for E004/E005: native calibration still receives parameter
+feedback from injected training; the old ideal unprojected residual already
+interpolates generators. Proximal barycenters and shared semantic probes remain
+candidates. None of the existing diagnostics proves round-to-round contraction
+or explains the small accuracy changes causally.

@@ -1,14 +1,38 @@
 # Current Project State
 
-Updated: 2026-09-05 UTC
+Updated: 2026-09-06 UTC
 
 ## Research objective
 
+Method-transfer consolidation (2026-09-06 UTC): `methodv0.md` now contains a
+front-loaded canonical summary of the latest causal-response-kernel candidate
+and joint realizable conservative flow. The method specification and
+operational handoff are no longer split across files for agent onboarding;
+supporting `.collab` notes retain derivations and evidence. Research status
+remains `NEEDS_RESEARCH`, and no source implementation or training is approved.
+
+Latest literature/diagnostic amendment (2026-09-05 UTC): the user temporarily
+assigns research to `xzc` and requires dynamics-grounded communication.
+Hamiltonian meta-learning (ICLR 2021/2024), MP-NODE (NeurIPS 2022), and NCF
+(ICLR 2025) are prioritized in `.collab/MULTISYSTEM_DYNAMICS_LITERATURE.md`.
+No new backbone is adopted. E013 records completed random-model CPU response
+checks; trained-task transfer and interface comparability remain unvalidated.
+Matched A and identity-centered P ridge are equivalent (D017), correcting the
+earlier expectation that P alone fixes the surrogate. R008 remains
+NEEDS_RESEARCH. This research pass did not edit Method v0 or production code.
+
 This workspace studies heterogeneous graph federated learning through graph neural dynamics. For client `m`, feature heterogeneity enters primarily through the initial condition `H_m(0)`, while structural heterogeneity changes the graph propagation operator or vector field. The current direction augments FedAvg with a low-dimensional dynamics knowledge channel.
 
-The active conceptual pipeline is:
+The active conceptual pipeline is now specified at Method v0 level around
+task-aware conservative dynamical knowledge flow:
 
-`Extract local dynamics -> Translate to a canonical functional space -> Share prototypes -> Complement native dynamics`
+`Define task-relevant dynamical knowledge -> Establish comparability -> Exchange under conservation and local admissibility -> Assess harmful heterogeneity and task behavior`
+
+The current research object is a transported, task-relevant dynamical response
+state. Semantic probes, Functional Map details, and local realization are
+implementation choices still requiring controlled validation. Proximal targets,
+explicit shared/private decomposition, anti-symmetric native weights, and
+correction dissipativity are not high-level requirements.
 
 ## Active code and workspace map
 
@@ -17,12 +41,12 @@ The active conceptual pipeline is:
 - `backbone_synthetic_csbm/`: controlled synthetic benchmark predecessor/reference.
 - `Anti-SymmetricDGN-main/`: upstream A-DGN reference code.
 - `datasets/`, `logs/`, and `checkpoints/`: generated data and experiment artifacts; intentionally excluded from Git.
-- `FUNCTIONAL_DYNAMICS_HIGH_LEVEL_FOR_CODEX.md`: high-level algorithm context.
+- `CONSERVATIVE_DYNAMICAL_KNOWLEDGE_FLOW_HIGH_LEVEL.md`: current high-level research skeleton.
 - `backbone_functional_dynamics_stable/FUNCTIONAL_DYNAMICS_IMPLEMENTATION.md`: active implementation notes and verification commands.
 
 ## Backbone and evaluation invariants
 
-- Model backbone: official A-DGN with 16 fixed Euler steps.
+- Current implementation/comparison backbone: official A-DGN with 16 fixed Euler steps. General native weights are a research candidate, to be identified as a separate backbone variant if implemented.
 - Federation: 10 persistent workers, global broadcast, full-model equal-weight FedAvg by default.
 - Optimizer: persistent local Adam state.
 - Evaluation: each client's best-validation round paired with that round's test metric, then mean and client standard deviation.
@@ -41,14 +65,14 @@ Implemented experimental extensions include:
 - generator shape normalization with local speed restoration;
 - diagnostics for generator fit, map residuals, basis staleness, correction stability, injection ratio, and cluster assignment.
 
-Status: engineering-complete for the current specification and experimentally stable, but the transfer mechanism remains unvalidated.
+Status: the existing Functional Dynamics implementation is engineering-complete and numerically stable, but its transfer mechanism is not validated. The current bottleneck is the exchanged knowledge definition: the ridge generator's steady-state relative fit error is roughly `0.276-0.727` across the 11-dataset evidence, so it is not trusted as the public state. Method v0 now points toward finite-time responses to common public probes after transport; the stronger active candidate is a causal response kernel indexed by dynamical port and injection/observation time. Generators, discrete operators, and neural models are compression diagnostics. E009 validates the exchange layer only; R008 remains research-stage.
 
 ## Established evidence
 
 - Official 11-dataset baseline results are stored in `backbone_functional_dynamics_stable/BASELINE_RESULTS.json`.
 - The controlled synthetic `feature_shift` baseline reaches `88.68 +/- 2.68%` paired test accuracy at seed 42 and 100 rounds; see `backbone_functional_dynamics_stable/SYNTHETIC_BENCHMARK.md`.
 - A seed-42 multi-prototype Functional Dynamics matrix has complete results for all 11 real datasets across two run directories. Seven point estimates improve and four decline; mean and median deltas are `+0.3366` and `+0.0302` percentage points. Only four gains exceed `+0.5` points. See `.collab/EXPERIMENTS.md` entry E003.
-- Current verification passes 18 unit tests plus all fast baseline invariants.
+- Previous engineering verification passed 18 unit tests plus all fast baseline invariants; these were not rerun during the conceptual review.
 
 ## Current empirical interpretation
 
@@ -61,10 +85,13 @@ Status: engineering-complete for the current specification and experimentally st
 
 ## Current open problems
 
-1. Decide whether adaptive prototype switching is part of the intended mechanism; if so, replace the effectively frozen margin with a falsifiable setting.
-2. Separate the effects of cross-client transfer, fixed clustering, Functional Map regularization, dissipative projection, and the small injection coefficient.
-3. Define local-only, shuffled/wrong-prototype, single-prototype, and module-off matched controls.
-4. Use controlled feature/structure synthetic regimes before interpreting real-dataset accuracy changes mechanistically.
-5. Convert the research conclusion into one bounded, implementation-ready next task.
+1. Define task-relevant dynamical knowledge and explain what conservation preserves; shared semantic probes are one candidate.
+2. Define harmful disagreement and locally admissible task behavior without presupposing an explicit shared/private split.
+3. Derive a compatible conservative flux and heterogeneity energy, stating the assumptions and time scale of descent or convergence claims.
+4. Keep native antisymmetry and correction dissipativity optional. A general graph vector field is compatible with the ODE view; finite-horizon numerical and gradient behavior is a separate question, with no mandatory trust-region architecture yet.
+5. Explain how exchange is realized in local models and distinguish exchange from local-learning source terms. Injected training already influences later native calibration through learned parameters; disabling correction during measurement does not remove all feedback.
+6. Validate causal response-kernel measurement, transport, and local realization.
+7. Implement raw-kernel Method v0 only after this gate, without changing official A-DGN/FedAvg behavior.
+8. Study operator compression and run matched mechanism controls on feature-only, structure-only, and joint synthetic regimes.
 
-There is no active source-code task until the research agent changes `.collab/NEXT_TASK.md` to `READY_FOR_IMPLEMENTATION`.
+The active research handoff is recorded in `.collab/NEXT_TASK.md`.
