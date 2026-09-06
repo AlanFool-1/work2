@@ -4,6 +4,15 @@ Updated: 2026-09-06 UTC
 
 ## Research objective
 
+Learning-process revision (2026-09-06 UTC): the current research premise is
+finite complementary knowledge absorption. A client's external dependency is
+measured by the additional task gain of receiver-realizable causal-response
+directions over a matched local-only update. Equilibrium means this marginal
+gain is exhausted for every client; it does not require response consensus.
+The conservative response constraint is secondary because learning copies
+knowledge rather than transferring a depletable physical mass. R009 remains
+`NEEDS_RESEARCH`; the next evidence is a frozen synthetic checkpoint pilot.
+
 Method-transfer consolidation (2026-09-06 UTC): `methodv0.md` now contains a
 front-loaded canonical summary of the latest causal-response-kernel candidate
 and joint realizable conservative flow. The method specification and

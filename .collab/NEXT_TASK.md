@@ -6,7 +6,33 @@ Owner: research-agent (xzc, temporary research takeover explicitly requested by 
 
 Updated: 2026-09-06 UTC
 
-Handoff: R008
+Handoff: R009
+
+## Marginal-gain exhaustion revision — 2026-09-06 UTC
+
+The human supplied the learning-process premise now recorded at the top of
+`methodv0.md`: a client should absorb a finite amount of useful complementary
+knowledge and eventually become federatively self-sufficient. The equilibrium
+criterion is no longer minimum response variance by itself. It is zero
+incremental task gain from any receiver-realizable external response direction
+relative to a compute- and norm-matched local-only update.
+
+Treat the causal response kernel as the candidate knowledge interface and the
+local response Jacobian as a realizability filter. Estimate predicted marginal
+gain `G_i` on a training-internal guard split, then measure realized gain by
+forking the same frozen checkpoint into local-only, true-external,
+time/source-shuffled, and no-flow updates. Flow must be accepted because its
+incremental gain is positive, and must stop when that gain is exhausted.
+
+The old antisymmetric conservation constraint may remain as an optional
+response-centering or numerical constraint. It is not a physical law of
+learning because knowledge can be copied without depleting the sender.
+
+Next action: design and run the cheapest frozen synthetic early/middle/late
+checkpoint pilot for feature-only, structure-only, and joint heterogeneity.
+Do not start the 11-dataset matrix. Report predicted and realized marginal
+gain, matched local-only gain, flow norm, kernel realization error, guard
+acceptance, and whether the true-external advantage decays toward zero.
 
 ## Canonical method consolidation — 2026-09-06 UTC
 

@@ -1,6 +1,37 @@
 # Experiments
 
-Updated: 2026-09-05 UTC
+Updated: 2026-09-06 UTC
+
+## E015 - Retrospective early-to-late flow-proxy analysis
+
+Date: 2026-09-06 UTC. Retrospective analysis of the completed E003 runs; no new
+training or checkpoint selection.
+
+For each of the 11 complete runs, excluded startup rounds with zero injection,
+then compared client-round medians in the first and last 20% of active rounds.
+The reported aggregate is the median of the 11 dataset-level values or ratios.
+Reproduction command:
+
+```bash
+python3 backbone_functional_dynamics_stable/scripts/analyze_flow_decay.py
+```
+
+| Old-method proxy | Datasets declining | Median early | Median late | Median late/early ratio |
+| --- | ---: | ---: | ---: | ---: |
+| Raw correction norm | 11/11 | 10.176 | 4.349 | 0.427 |
+| Injected/native ratio | 10/11 | 1.203% | 0.896% | 0.730 |
+| Post-projection safe norm | 1/11 | 1.250 | 1.492 | 1.189 |
+| Cluster distance | 6/11 | 0.735 | 0.663 | 0.972 |
+
+The raw correction and relative injection usually weaken with training, which
+is compatible with decreasing external correction demand. This is not evidence
+that complementary knowledge was absorbed: parameter scaling, fixed
+prototypes, Functional Map evolution, optimization convergence, and clipping
+can create the same pattern. In particular, the applied safe correction does
+not usually decline, and no same-checkpoint local-only counterfactual exists.
+
+Decision use: motivate R009's direct marginal-gain measurement. Do not use
+these proxies as an information-gain or convergence claim.
 
 Raw logs remain under `logs/` and code-local `run_logs/`. This file stores only evidence needed for research decisions.
 

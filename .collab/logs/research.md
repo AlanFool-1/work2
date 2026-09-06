@@ -1,5 +1,26 @@
 # Research Agent Log
 
+## 2026-09-06 UTC — finite complementary knowledge absorption premise
+
+The human clarified the learning-process motivation for knowledge flow: FL
+should progressively reduce each client's dependence on useful external
+knowledge until additional collaboration has no marginal value. Revised the
+canonical Method v0 entry around external marginal gain over a matched
+local-only update and defined federated self-sufficiency by gain exhaustion.
+
+This changes the status of the old conservation argument. Knowledge is
+non-rival, so antisymmetric response flow can be a centering or numerical
+constraint but is not the fundamental reason exchange stops. The causal
+response kernel remains the external knowledge interface; receiver
+realizability and task gain decide whether it is absorbed.
+
+Prepared R009 and a weekly report draft. Added a retrospective analysis of the
+completed 11-dataset logs: the raw correction norm declines from the first to
+last active 20% on 11/11 datasets (median late/early ratio 0.427), and the
+injected/native ratio declines on 10/11 (median ratio 0.730), but the
+post-projection safe norm declines on only 1/11 (median ratio 1.189). These are
+old-method proxies, not measurements of marginal external information gain.
+
 ## 2026-09-06 UTC — canonical Method v0 agent-transfer summary
 
 Audited `methodv0.md` against the newer causal-response-kernel research note,

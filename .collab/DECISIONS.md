@@ -2,6 +2,34 @@
 
 Updated: 2026-09-06 UTC
 
+## D020 - Define equilibrium by exhaustion of external learnable gain
+
+Decision:
+
+Adopt finite complementary knowledge absorption as the learning-process premise
+for the next method revision. For client `i`, define federated value as the
+incremental task gain of receiver-realizable external dynamical-response
+directions over a compute- and norm-matched local-only update. Cross-client flow
+is active only while this gain is positive. The equilibrium criterion is that
+no client has a significant positive external marginal gain.
+
+Response heterogeneity remains a diagnostic and a source of candidate
+directions, but minimizing it is not sufficient: large response differences may
+be useless or infeasible, and useful external knowledge may remain even when a
+global distance is small. The antisymmetric conservation law is demoted from a
+learning axiom to an optional centering/numerical constraint because knowledge
+is non-rival and is not depleted at the sender when learned by a receiver.
+
+Scope:
+
+The finite knowledge-pool statement is a bounded, stage-wise assumption under
+a fixed task, client population, model class, and communication interface. The
+pool may refresh as clients learn, so marginal gain is re-estimated each round.
+This decision does not establish task benefit or convergence in the current
+nonconvex implementation.
+
+Status: Active research direction; R009 `NEEDS_RESEARCH`.
+
 ## D019 - Consolidate the canonical method specification in Method v0
 
 Decision:
