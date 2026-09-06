@@ -2,6 +2,42 @@
 
 Updated: 2026-09-06 UTC
 
+## D021 - Select a response operator before testing knowledge-flow exhaustion
+
+Decision:
+
+Downgrade E015's early-to-late old-controller analysis to historical side
+evidence. It cannot identify the exchanged knowledge or distinguish absorption
+from optimization, scaling, fixed targets, or clipping. Defer R009's direct
+marginal-gain exhaustion experiment until a low-dimensional local dynamics
+proxy passes an explicit representation gate.
+
+Use a low-rank finite-horizon causal response operator as the leading candidate.
+It maps shared port/time perturbations to shared task-observation/time responses
+along the real local ODE-GNN. Define cross-client complementarity as source
+operator modes outside a receiver's current response-operator subspace. Compose
+multiple clients by deduplicating and taking the union of receiver-missing
+modes, then apply local realizability and task-gain gates. Do not use a
+barycenter, prototype, cluster, or raw parameter average as the definition of
+complementarity.
+
+The object is not assumed to be a classic Hankel operator. Block-Hankel
+compression is permitted only if approximate lag stationarity is supported;
+otherwise retain the general finite-horizon causal response matrix. Compare it
+against autonomous/affine generators and delay-AR/Koopman under matched rank,
+bytes, ports, observations, and evaluation splits.
+
+Reason:
+
+The desired learning process requires an operational test for “the other
+client has a dynamical capability that I do not yet have.” A response-subspace
+innovation supplies that asymmetric test and shrinks when the receiver absorbs
+the mode. A global distance or mean cannot distinguish novelty from redundancy,
+task irrelevance, or local infeasibility.
+
+Status: Active research candidate; R010 `NEEDS_RESEARCH`. No production
+aggregator or large training run is authorized by this decision.
+
 ## D020 - Define equilibrium by exhaustion of external learnable gain
 
 Decision:
@@ -28,7 +64,8 @@ pool may refresh as clients learn, so marginal gain is re-estimated each round.
 This decision does not establish task benefit or convergence in the current
 nonconvex implementation.
 
-Status: Active research direction; R009 `NEEDS_RESEARCH`.
+Status: Active learning-process premise; its direct experiment is deferred by
+D021/R010 until a defensible low-dimensional proxy is selected.
 
 ## D019 - Consolidate the canonical method specification in Method v0
 

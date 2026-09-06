@@ -1,5 +1,24 @@
 # Research Agent Log
 
+## 2026-09-06 UTC — R010 low-dimensional operator-selection redesign
+
+The human rejected the retrospective decay of old correction magnitudes as an
+uninformative next experiment and redirected the research to the local
+dynamics object itself. Reframed the gate around held-out dynamics fidelity,
+cross-client semantic comparability, receiver-specific complement recovery,
+and local absorbability.
+
+The leading candidate is a low-rank finite-horizon causal response operator,
+with block-Hankel structure treated as an empirical special case rather than an
+assumption for the nonlinear ODE-GNN. Cross-client combination uses a
+deduplicated union of source modes outside the receiver's current operator
+subspace, followed by realizability and marginal-gain gates. Recorded the
+formal design and falsification rules in
+`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`, preregistered R010 in
+`.collab/operator_proxy_pilot.yaml`, and updated Method v0, D021, E016, project
+state, weekly report, and handoff. No new training or numeric experiment was
+run.
+
 ## 2026-09-06 UTC — finite complementary knowledge absorption premise
 
 The human clarified the learning-process motivation for knowledge flow: FL

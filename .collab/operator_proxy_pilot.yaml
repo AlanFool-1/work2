@@ -1,0 +1,63 @@
+study_id: response-operator-selection-r010
+claim: "Under a matched rank and communication budget, a low-rank finite-horizon causal response operator identifies receiver-missing dynamical modes and predicts realized receiver benefit more reliably than autonomous-generator, affine, and delay-AR proxies."
+stage: design
+code:
+  project: /opt/data/private/xzc/work2/backbone_functional_dynamics_stable
+  environment: torch
+  commit_or_diff: "Record git commit and dirty diff before any pilot run."
+intervention:
+  axis: joint
+  family: "Known shared/client-exclusive stable response modes, followed by frozen A-DGN feature_shift, structure_homophily, and mixed checkpoints."
+  levels: [feature_shift, structure_homophily, mixed]
+  invariants:
+    - labels_and_splits
+    - model_initialization_within_paired_forks
+    - port_sensor_and_time_semantics
+    - proxy_rank_and_communication_budget
+    - local_update_compute_and_norm_budget
+mediator:
+  name: receiver_novel_response_subspace
+  definition: "For source mode b_jk and receiver projector P_i in the shared finite-horizon operator space, n_j_to_i_k = sigma_jk (I-P_i)b_jk; report realizable and task-gated variants separately."
+controls:
+  - ordinary_laplacian
+  - matched_encoder_block
+  - matched_classifier_block
+  - matched_random_block
+  - current_autonomous_ridge_generator
+  - affine_generator
+  - delay_ar_koopman
+  - full_raw_response_upper_bound
+  - matched_local_only
+  - source_time_shuffled
+  - redundant_source
+  - no_flow
+evaluation:
+  datasets:
+    - controlled_known_mode_system
+    - Synthetic_feature_shift
+    - Synthetic_structure_homophily
+    - Synthetic_mixed
+  seeds: [42]
+  checkpoints: [early, middle, late]
+  fit_split: "Fit proxy ranks on designated port-time blocks and training-internal graph probes only."
+  test_split: "Hold out port combinations, future time blocks, initial states, and receiver update forks; validation/test labels never select flow."
+  metrics:
+    - heldout_response_nrmse
+    - effective_rank_and_singular_gap
+    - bootstrap_principal_angle
+    - exclusive_mode_precision_recall
+    - missing_response_recovery
+    - receiver_realization_residual
+    - realized_gain_over_matched_local_only
+    - innovation_gain_rank_correlation
+    - communication_bytes
+    - runtime
+decision_rule: "Advance a proxy only if it improves held-out response over the autonomous generator, separates exclusive from redundant modes on the known-mode system, and its realizable innovation score ranks true receiver gains above shuffled/redundant sources. Advance the low-rank response operator to full FL only if it also approaches the raw-response upper bound within the declared byte budget."
+failure_pattern: "Reject the proxy if held-out fidelity is no better than static/autonomous baselines, its subspace is bootstrap-unstable, it cannot recover known exclusive modes, or shuffled source/time responses yield receiver gains comparable to true innovations. If the raw-response upper bound has no benefit, revisit ports/observations or the transfer premise instead of increasing rank."
+compute:
+  workers: 10
+  devices: "Stage A CPU; Stage B cuda:0,cuda:1 after the design gate."
+  timeout_minutes: 60
+outputs:
+  run_tag: response_operator_selection_r010_seed42
+  directory: "Use a new timestamped directory under backbone_functional_dynamics_stable/run_logs; never overwrite existing artifacts."

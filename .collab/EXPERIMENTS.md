@@ -2,6 +2,32 @@
 
 Updated: 2026-09-06 UTC
 
+## E016 - Preregistered low-dimensional dynamics operator selection
+
+Date: 2026-09-06 UTC. Study design only; no new numeric experiment or model
+training was run.
+
+The current proxy-selection study is specified in
+`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md` and preregistered in
+`.collab/operator_proxy_pilot.yaml`. It compares autonomous and affine
+generators, delay-AR/Koopman, a low-rank finite-horizon causal response
+operator, and an uncompressed response upper bound under matched rank and
+communication budgets.
+
+The decisive Stage A uses known shared and client-exclusive dynamical modes.
+It tests held-out port/time response prediction, bootstrap subspace stability,
+exclusive-mode recovery, and receiver missing-response repair. Stage B then
+uses frozen feature, structure, and joint synthetic A-DGN checkpoints and
+matched local-only, true-source, shuffled-source/time, redundant-source,
+raw-response, and no-flow forks. The study is designed to reject proxies that
+fit their own trajectory but cannot identify or transfer receiver-missing
+dynamical capability.
+
+No proxy is selected by evidence yet. The low-rank causal response operator is
+the leading hypothesis because it has shared input-output semantics and admits
+receiver-specific subspace innovation. Production source changes and the
+11-dataset matrix remain deferred.
+
 ## E015 - Retrospective early-to-late flow-proxy analysis
 
 Date: 2026-09-06 UTC. Retrospective analysis of the completed E003 runs; no new
@@ -30,8 +56,9 @@ prototypes, Functional Map evolution, optimization convergence, and clipping
 can create the same pattern. In particular, the applied safe correction does
 not usually decline, and no same-checkpoint local-only counterfactual exists.
 
-Decision use: motivate R009's direct marginal-gain measurement. Do not use
-these proxies as an information-gain or convergence claim.
+Decision use: historical side evidence only. Do not use these proxies to select
+a dynamics operator, or as an information-gain, absorption, or convergence
+claim. R010 supersedes the experiment it previously motivated.
 
 Raw logs remain under `logs/` and code-local `run_logs/`. This file stores only evidence needed for research decisions.
 

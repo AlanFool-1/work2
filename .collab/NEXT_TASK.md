@@ -6,9 +6,48 @@ Owner: research-agent (xzc, temporary research takeover explicitly requested by 
 
 Updated: 2026-09-06 UTC
 
-Handoff: R009
+Handoff: R010
 
-## Marginal-gain exhaustion revision — 2026-09-06 UTC
+## Low-dimensional dynamics operator selection — 2026-09-06 UTC
+
+The human rejected E015's retrospective flow decay as a useful next
+experiment. That analysis observes old-controller magnitudes and cannot decide
+what dynamical knowledge should be exchanged. Keep it only as historical side
+evidence.
+
+The current research gate is representation selection. Compare local dynamics
+objects under matched rank and communication budgets. The leading candidate is
+a low-rank finite-horizon causal response operator mapping shared port/time
+perturbations to shared task-observation/time responses. Do not call it a
+Hankel operator unless approximate lag stationarity is measured; the nonlinear
+trajectory linearization can be time-varying.
+
+Define complementarity as receiver-specific operator-subspace innovation, not
+distance to a centroid. For source singular mode `b_jk` and receiver operator
+subspace projector `P_i`, start from
+`n_j_to_i_k = sigma_jk (I-P_i)b_jk`. Deduplicate innovations across sources by
+incremental QR/SVD, then filter them by receiver realizability and gain over a
+matched local-only update. The server forms a receiver-specific union of
+nonredundant modes; it does not average models or publish a common prototype.
+
+Next action: implement only the measurement/evaluation pilot specified in
+`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md` and
+`.collab/operator_proxy_pilot.yaml`. Stage A must use known shared and
+client-exclusive modes to test whether the proxies recover true
+complementarity. Stage B uses frozen A-DGN checkpoints for `feature_shift`,
+`structure_homophily`, and `mixed`, after the required synthetic artifacts
+exist. Compare the current autonomous generator, affine generator,
+delay-AR/Koopman, low-rank causal response operator, and raw-response upper
+bound under matched budgets.
+
+Do not launch the 11-dataset matrix or integrate a training-time aggregator.
+Advance only if one proxy passes held-out response fidelity, missing-mode
+recovery, bootstrap stability, and predicts realized benefit over local-only;
+source/time-shuffled and redundant-source controls must fail. If the raw
+response upper bound has no receiver benefit, revisit the port/observation
+semantics or the transfer premise.
+
+## Historical R009: marginal-gain exhaustion revision — 2026-09-06 UTC
 
 The human supplied the learning-process premise now recorded at the top of
 `methodv0.md`: a client should absorb a finite amount of useful complementary
@@ -28,11 +67,8 @@ The old antisymmetric conservation constraint may remain as an optional
 response-centering or numerical constraint. It is not a physical law of
 learning because knowledge can be copied without depleting the sender.
 
-Next action: design and run the cheapest frozen synthetic early/middle/late
-checkpoint pilot for feature-only, structure-only, and joint heterogeneity.
-Do not start the 11-dataset matrix. Report predicted and realized marginal
-gain, matched local-only gain, flow norm, kernel realization error, guard
-acceptance, and whether the true-external advantage decays toward zero.
+This remains the learning-process hypothesis, but its direct early/middle/late
+experiment is deferred until R010 selects a defensible low-dimensional proxy.
 
 ## Canonical method consolidation — 2026-09-06 UTC
 

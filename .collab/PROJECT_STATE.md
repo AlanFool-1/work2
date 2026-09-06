@@ -4,14 +4,27 @@ Updated: 2026-09-06 UTC
 
 ## Research objective
 
+Operator-selection revision (2026-09-06 UTC): the immediate bottleneck is no
+longer whether the old correction norm decays, but which low-dimensional local
+dynamics object can support interaction, composition, and receiver-specific
+complementarity. R010 compares autonomous/affine generators, delay-AR/Koopman,
+and a low-rank finite-horizon causal response operator under matched rank and
+communication budgets. The response operator is the leading candidate because
+its axes have shared port/time and task-observation/time semantics. Cross-client
+composition is defined as a deduplicated union of modes missing from each
+receiver, followed by realizability and marginal-gain gates. This is a research
+hypothesis, not an adopted algorithm. See
+`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`.
+
 Learning-process revision (2026-09-06 UTC): the current research premise is
 finite complementary knowledge absorption. A client's external dependency is
 measured by the additional task gain of receiver-realizable causal-response
 directions over a matched local-only update. Equilibrium means this marginal
 gain is exhausted for every client; it does not require response consensus.
 The conservative response constraint is secondary because learning copies
-knowledge rather than transferring a depletable physical mass. R009 remains
-`NEEDS_RESEARCH`; the next evidence is a frozen synthetic checkpoint pilot.
+knowledge rather than transferring a depletable physical mass. R010 remains
+`NEEDS_RESEARCH`; the next evidence is an operator-identification pilot with
+known complement modes, followed by frozen synthetic checkpoints.
 
 Method-transfer consolidation (2026-09-06 UTC): `methodv0.md` now contains a
 front-loaded canonical summary of the latest causal-response-kernel candidate
@@ -27,8 +40,8 @@ Hamiltonian meta-learning (ICLR 2021/2024), MP-NODE (NeurIPS 2022), and NCF
 No new backbone is adopted. E013 records completed random-model CPU response
 checks; trained-task transfer and interface comparability remain unvalidated.
 Matched A and identity-centered P ridge are equivalent (D017), correcting the
-earlier expectation that P alone fixes the surrogate. R008 remains
-NEEDS_RESEARCH. This research pass did not edit Method v0 or production code.
+earlier expectation that P alone fixes the surrogate. That literature and
+diagnostic pass is historical evidence under the current R010 gate.
 
 This workspace studies heterogeneous graph federated learning through graph neural dynamics. For client `m`, feature heterogeneity enters primarily through the initial condition `H_m(0)`, while structural heterogeneity changes the graph propagation operator or vector field. The current direction augments FedAvg with a low-dimensional dynamics knowledge channel.
 
@@ -74,7 +87,7 @@ Implemented experimental extensions include:
 - generator shape normalization with local speed restoration;
 - diagnostics for generator fit, map residuals, basis staleness, correction stability, injection ratio, and cluster assignment.
 
-Status: the existing Functional Dynamics implementation is engineering-complete and numerically stable, but its transfer mechanism is not validated. The current bottleneck is the exchanged knowledge definition: the ridge generator's steady-state relative fit error is roughly `0.276-0.727` across the 11-dataset evidence, so it is not trusted as the public state. Method v0 now points toward finite-time responses to common public probes after transport; the stronger active candidate is a causal response kernel indexed by dynamical port and injection/observation time. Generators, discrete operators, and neural models are compression diagnostics. E009 validates the exchange layer only; R008 remains research-stage.
+Status: the existing Functional Dynamics implementation is engineering-complete and numerically stable, but its transfer mechanism is not validated. The current bottleneck is the exchanged knowledge definition: the ridge generator's steady-state relative fit error is roughly `0.276-0.727` across the 11-dataset evidence, so it is not trusted as the public state. Method v0 now points toward finite-time responses to common public probes after transport; the leading candidate is a low-rank finite-horizon causal response operator indexed by dynamical port and injection/observation time. Generators, delay operators, and the raw response are matched candidates or upper bounds in R010. E009 validates the old exchange layer only.
 
 ## Established evidence
 
@@ -99,8 +112,8 @@ Status: the existing Functional Dynamics implementation is engineering-complete 
 3. Derive a compatible conservative flux and heterogeneity energy, stating the assumptions and time scale of descent or convergence claims.
 4. Keep native antisymmetry and correction dissipativity optional. A general graph vector field is compatible with the ODE view; finite-horizon numerical and gradient behavior is a separate question, with no mandatory trust-region architecture yet.
 5. Explain how exchange is realized in local models and distinguish exchange from local-learning source terms. Injected training already influences later native calibration through learned parameters; disabling correction during measurement does not remove all feedback.
-6. Validate causal response-kernel measurement, transport, and local realization.
-7. Implement raw-kernel Method v0 only after this gate, without changing official A-DGN/FedAvg behavior.
-8. Study operator compression and run matched mechanism controls on feature-only, structure-only, and joint synthetic regimes.
+6. Select a low-dimensional proxy using held-out response prediction, known missing-mode recovery, subspace stability, and receiver benefit.
+7. Validate causal response-operator measurement, transport, and local realization on frozen trained models.
+8. Implement any training-time exchange only after these gates, without changing official A-DGN/FedAvg behavior.
 
 The active research handoff is recorded in `.collab/NEXT_TASK.md`.

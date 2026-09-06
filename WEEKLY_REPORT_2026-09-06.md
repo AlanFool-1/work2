@@ -1,8 +1,8 @@
-# 周报：从守恒动力学知识流到有限互补知识吸收
+# 周报：有限互补知识吸收与本地动力学算子选择
 
 日期：2026-09-06 UTC
 
-状态：核心思想已形成；因果响应测量通过微型数值检查；任务相关的边际外部增益尚未验证。
+状态：学习过程思想已形成；当前研究瓶颈转为低维动力学代理选择，尚未进入完整知识流实验。
 
 ## 1. 本周核心思想
 
@@ -86,27 +86,29 @@ G_i(\theta_i^*,x_{-i}^*)\le\varepsilon_G,
 
 这为“有限互补知识被逐步吸收，边际收益最终耗尽”提供了条件性的数学表达。它不等价于证明非凸模型参数收敛或测试精度单调上升。
 
-## 4. 动力学知识如何进入优化
+## 4. 动力学知识用什么低维对象表示
 
-客户端通过真实 ODE-GNN 的有限时间因果响应核描述动力学知识：
+当前更关键的问题不是如何加权聚合，而是先定义可交互的本地动力学对象。一个合格代理必须能够预测未参与拟合的动力学响应、在不同客户端之间具有共同语义、识别接收方缺失的能力，并能映射回接收方自身模型。
 
-\[
-\mathcal K_{i,t,s}
-=
-\left.
-\frac{\partial\mathcal O_i(h_{i,t})}{\partial u_{i,s}}
-\right|_{u=0}.
-\]
-
-其中 $u_{i,s}$ 是在传播时刻 $s$ 施加的初值、邻居耦合或局部衰减端口，$\mathcal O_i(h_{i,t})$ 是时刻 $t$ 的任务相关观测。该对象保留端口、时间、输出语义和响应符号。
-
-外部核只提供候选知识方向。接收客户端先通过响应 Jacobian
+当前首选是低秩有限时域因果响应算子。将公共端口在多个时刻的干预组成 \(u_i\)，将多个未来时刻的任务相关观测变化组成 \(\delta y_i\)，沿真实 ODE-GNN 轨迹线性化：
 
 \[
-D_i=D_{\theta_i}\operatorname{vec}(\mathcal K_i)
+\delta y_i=\mathcal R_i u_i+O(\|u_i\|^2),
+\qquad
+\mathcal R_i\approx U_i\Sigma_iV_i^\top.
 \]
 
-检查候选变化能否由自身向量场参数实现，再通过 $G_i$ 判断该方向是否具有超越 local-only 的任务价值。因此，一个外部方向必须同时满足可比较、可实现和有增益三项条件。
+其中 \(\mathcal R_i\) 的每个块仍是因果核 \(\mathcal K_{i,t,s}\)。输入轴由端口类型和施加时刻定义，输出轴由任务观测和观测时刻定义，因此不同图不需要节点一一对应。截断 SVD 只压缩这个小型响应矩阵，不对节点级图算子做分解。
+
+互补知识定义为来源客户端的响应模态在接收方已有算子子空间之外的分量。若 \(b_{jk}\) 是来源 \(j\) 的第 \(k\) 个单位响应模态，\(P_i\) 是接收方模态子空间的投影，则
+
+\[
+n_{j\to i,k}=\sigma_{jk}(I-P_i)b_{jk}.
+\]
+
+服务器对不同来源的 \(n_{j\to i,k}\) 做增量 QR/SVD，合并非冗余方向，为每个接收方形成一个“缺失模态集合”。接收方再用本地响应 Jacobian 检查可实现性，并与 matched local-only 比较任务增益。这里组合的是能力方向的并集，不是模型均值、重心或 prototype。某模态被吸收后会进入 \(P_i\) 的像空间，其后续创新自动减小并最终停止流动。
+
+严格地说，非线性 ODE-GNN 沿轨迹的变分系统可能时变，因此当前对象称为有限时域响应算子。只有实验证明响应近似只依赖时间差时，才把它重排并压缩为经典 block-Hankel 形式。
 
 ## 5. 已有实验与初步分析
 
@@ -116,7 +118,7 @@ D_i=D_{\theta_i}\operatorname{vec}(\mathcal K_i)
 
 旧实现的有效注入仅占 native field 的约 `0.57%–1.32%`，10/11 数据集的 spectral clipping 持续生效，所有数据集的 prototype switching 都为零。因此该实验主要验证了工程稳定性，没有验证外部知识被逐步吸收。
 
-### 5.2 对“流量应逐步减小”的回顾性代理分析
+### 5.2 回顾性流量分析：降为旁证
 
 对每个完整数据集运行，去除未启用注入的启动轮次，将有效轮次的前 20% 与后 20% 比较；先在客户端和窗口内取中位数，再对 11 个数据集汇总。
 
@@ -127,9 +129,9 @@ D_i=D_{\theta_i}\operatorname{vec}(\mathcal K_i)
 | post-projection safe norm | 1/11 | 1.250 | 1.492 | 1.189 |
 | cluster distance | 6/11 | 0.735 | 0.663 | 0.972 |
 
-观察：未经安全投影的候选修正以及相对注入强度大多随训练下降，说明旧系统中存在“外部修正需求减弱”的现象。Roman-empire 的注入比例下降最明显，late/early 为 `0.415`；Photo 基本不下降，为 `1.007`。
+观察：未经安全投影的候选修正以及相对注入强度大多随训练下降。Roman-empire 的注入比例下降最明显，late/early 为 `0.415`；Photo 基本不下降，为 `1.007`。
 
-限制：这些量都不是外部边际信息增益。raw correction 下降可能来自参数尺度、固定 prototype、Functional Map 或优化收敛；post-projection safe norm 在 10/11 数据集没有下降，说明 clipping 会破坏自然流量解释。当前日志也没有同快照 local-only 反事实，无法判断流量下降是知识已被吸收、控制器失效还是任务已经不再可学。
+这一分析不能指导算子选择，也不能证明知识吸收。raw correction 下降可能来自参数尺度、固定 prototype、Functional Map 或优化收敛；post-projection safe norm 在 10/11 数据集没有下降。当前日志没有同快照 local-only 反事实，无法判断流量下降是知识已被吸收、控制器失效还是任务已经不再可学。因此只保留数值记录，不再作为下一步实验依据。
 
 ### 5.3 因果响应核的微型检查
 
@@ -139,36 +141,38 @@ D_i=D_{\theta_i}\operatorname{vec}(\mathcal K_i)
 
 ## 6. 当前判断
 
-本周证据支持重新定义问题，但尚未支持新算法有效：
+本周证据支持重新定义问题，但尚未选出有效代理：
 
-- 旧方法的 raw correction 在全部 11 个数据集上下降，提供了流量衰减的初步现象；
-- 投影后的实际修正没有同步下降，旧控制器不能作为知识吸收机制的证据；
-- 任务收益较小且不一致，现有日志缺少 external-versus-local 的边际增益测量；
-- 因果响应核的数值定义成立，但任务语义、覆盖率和训练成本仍未验证。
+- 当前自治 ridge generator 的稳态拟合残差约为 `0.276–0.727`，尚无留出时间或端口响应证据，不能继续默认代表本地动力学；
+- 匹配目标下的连续 \(A\) 与 \(P=I+hA\) 代数等价，单纯换成离散传播子不增加表达能力；
+- 因果响应核已经通过 zero-port、因果性和 AD/有限差分一致性检查，说明它可被可靠测量；
+- 这些微型检查仍未证明低秩响应结构、跨客户端互补恢复或任务收益。
 
-因此，下一阶段不应继续调大 injection、修改 prototype 或直接扩展真实数据集，而应首先测量“外部知识相对本地学习的额外收益是否随训练逐步耗尽”。
+因此，当前优先级是代理辨识，而不是直接测“流量是否随训练下降”。首选假设为低秩有限时域因果响应算子，delay-AR/Koopman 是主要竞争者，自治和仿射生成元作为低成本基线。
 
 ## 7. 下一步最小实验
 
-在 feature-only、structure-only 和 joint synthetic 场景上保存早期、中期和晚期 checkpoint。每个 checkpoint 从同一参数、优化器和数据状态分叉为：
+第一阶段构造具有已知共享模态和客户端独有模态的稳定受控系统，在相同秩和通信字节下比较：
 
-1. matched local-only；
-2. true causal-response external update；
-3. shuffled source/time external update；
-4. no-flow。
+1. 当前自治 generator；
+2. affine generator；
+3. delay-AR/Koopman；
+4. 低秩有限时域因果响应算子；
+5. 未压缩响应核上界。
 
-使用训练数据内部固定 guard split 选择或拒绝更新；官方 validation 继续只用于 best-round 选择，test 不参与流量控制。首轮 pilot 使用 3 个种子并明确其探索性质，论文结论至少使用 5 个种子。
+使用留出端口组合、未来时间块和新初值测量响应 NRMSE、有效秩、bootstrap 子空间稳定性、独有模态 precision/recall 和接收方缺失响应恢复率。该阶段直接回答代理能否识别“别人会、我不会”的动力学能力。
 
-需要记录：$G_i$、$\widehat G_i$、外部方向范数、实际任务下降、响应实现残差、流接受率、累计外部增益、通信字节和运行时间。
+第二阶段才进入冻结的 `feature_shift`、`structure_homophily` 和 `mixed` A-DGN checkpoint。每个接收方从同一快照分叉 matched local-only、true source、source/time shuffled、redundant source、raw response upper bound 和 no-flow，检查代理创新分数能否预测真实额外任务增益。
 
-支持主张的预期模式是：真实外部更新在早期显著优于 local-only，随后增益与流接受率逐步下降，在晚期接近零；shuffled 更新不能复现早期增益。若增益不下降、错误响应同样有效，或者任务改善可由等预算额外本地训练解释，则应拒绝“有限互补动力学知识吸收”机制。
+若某代理不能预测留出响应、不能区分独有与重复模态，或 shuffled source 与真实来源效果相同，则淘汰该代理。若未压缩响应上界本身不能改善接收方，应返回端口/观测语义或“是否存在可迁移动力学知识”这一更上游的问题。只有代理通过后，才开展早—中—晚 checkpoint 的边际增益耗尽实验。
 
 ## 8. 复现信息
 
-- 代码提交：`1b699fb` 加本周文档修改；生成周报时工作树仍有两个此前存在的文档删除。
+- 当前设计起点提交：`f7b8670`；R010 算子选择文档由本周后续提交记录。工作树仍有两个此前存在的文档删除。
 - 11 数据集结果与诊断：`.collab/EXPERIMENTS.md` 的 E003。
 - 因果响应数值检查：`.collab/EXPERIMENTS.md` 的 E013 与 `.collab/DYNAMICAL_RESPONSE_CHECKS.md`。
 - 当前方法规范：`methodv0.md`。
-- 当前执行 handoff：`.collab/NEXT_TASK.md`，R009，`NEEDS_RESEARCH`。
+- 算子选择规范：`.collab/LOW_DIMENSIONAL_DYNAMICS_OPERATOR_SELECTION.md`。
+- 当前执行 handoff：`.collab/NEXT_TASK.md`，R010，`NEEDS_RESEARCH`。
 - 回顾性流量分析命令：`python3 backbone_functional_dynamics_stable/scripts/analyze_flow_decay.py`。
 - 本周没有启动新 GPU 训练，没有修改 production source、checkpoint 或数据。
