@@ -41,7 +41,7 @@ evaluation:
     - Synthetic_feature_shift
     - Synthetic_structure_homophily
     - Synthetic_mixed
-  seeds: [42]
+  seeds: [11, 23, 37, 42, 59]
   checkpoints: [frozen_pilot]
   fit_split: "Estimate Functional Maps from descriptor probes and network cycles only; do not use the held-out action probes or horizons that define transfer."
   test_split: "Evaluate map error, cycle error, action defect, distillation, and task behavior on held-out probes/horizons and paired receiver forks."
@@ -56,12 +56,23 @@ evaluation:
     - source_time_shuffle_gap
     - communication_bytes
     - wall_time
-decision_rule: "Advance only if the learned map generalizes to held-out descriptors/cycles, the defect separates satisfied from transferable-missing actions, action-pair distillation lowers both held-out defect and receiver task loss for transferable actions, harmful/repeated/wrong/shuffled controls do not create comparable effective flow, and cost is lower than R010 full-response processing."
+decision_rule: "Advance only if the learned map generalizes to held-out descriptors/cycles, the defect separates satisfied from transferable-missing actions, action-pair distillation lowers both held-out defect and receiver task loss for transferable actions, harmful/repeated/wrong/shuffled and norm-matched parameter-average controls do not create comparable effective flow, and cost is lower than R010 full-response processing."
 failure_pattern: "Reject the mechanism if the map is unidentifiable without using the same dynamics being evaluated, if defect merely tracks arbitrary structural difference, if task-harmful actions pass the gate, if wrong or shuffled maps perform comparably, or if defect reduction does not improve the receiver task."
 compute:
   workers: 1
   devices: "CPU for the known-map pilot; frozen GPU checkpoint audit only after the pilot passes."
   timeout_minutes: 30
+  pilot_parameters:
+    reduced_rank: 6
+    descriptor_columns_per_split: 24
+    action_probe_columns_per_split: 12
+    task_probe_columns_per_split: 36
+    action_horizons: [0.5, 1.0]
+    receiver_steps: 60
+    learning_rate: 0.025
+    flow_strength: 4.0
+    map_error_threshold: 0.10
+    defect_threshold: 0.01
 outputs:
-  run_tag: functional_intertwining_r011_seed42
+  run_tag: functional_intertwining_r012_five_seed
   directory: "Use a new timestamped directory under backbone_functional_dynamics_stable/run_logs; never overwrite existing artifacts."
