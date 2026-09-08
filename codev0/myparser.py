@@ -1,4 +1,4 @@
-"""CLI for the S0 and Method V0.1 federated graph models."""
+"""CLI for S0, V0.1, and V0.2 federated graph models."""
 
 import argparse
 import sys
@@ -14,7 +14,7 @@ class Parser:
     def set_arguments(self):
         parser = self.parser
         parser.add_argument(
-            '--model', choices=['s0_ode', 'v01_linear'], default='s0_ode'
+            '--model', choices=['s0_ode', 'v01_linear', 'v02_koopman'], default='s0_ode'
         )
         parser.add_argument('--gpu', type=str, default='0,1')
         parser.add_argument('--seed', type=int, default=42)
@@ -63,6 +63,13 @@ class Parser:
         parser.add_argument('--linear-step-size', type=float, default=0.1)
         parser.add_argument('--linear-gamma', type=float, default=0.1)
         parser.add_argument('--reconstruction-weight', type=float, default=0.0)
+        parser.add_argument('--native-weight', type=float, default=1.0)
+        parser.add_argument('--prediction-weight', type=float, default=1.0)
+        parser.add_argument('--linearity-weight', type=float, default=0.1)
+        parser.add_argument('--generator-norm-bound', type=float, default=4.0)
+        parser.add_argument('--correction-interval', type=int, default=0)
+        parser.add_argument('--identity-dynamics', action='store_true')
+        parser.add_argument('--max-grad-norm', type=float, default=5.0)
 
     def parse(self):
         explicit_args = set()

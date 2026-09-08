@@ -1,4 +1,4 @@
-"""Entry point for the S0 and Method V0.1 federated graph models."""
+"""Entry point for S0, V0.1, and V0.2 federated graph models."""
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ def _load_config(args):
         config_name = {
             's0_ode': 's0_ode_gnn.json',
             'v01_linear': 'v01_linear_gnn.json',
+            'v02_koopman': 'v02_koopman_gnn.json',
         }[args.model]
         config_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
@@ -86,7 +87,7 @@ def set_config(args):
             raise ValueError('Official A-DGN adgn_step_size must be positive.')
         if args.ode_gamma < 0.0:
             raise ValueError('Official A-DGN gamma must be non-negative.')
-    elif args.model == 'v01_linear':
+    elif args.model in {'v01_linear', 'v02_koopman'}:
         if min(
             args.latent_dim,
             args.encoder_width,
@@ -99,6 +100,14 @@ def set_config(args):
             raise ValueError('V0.1 linear_gamma must be non-negative.')
         if args.reconstruction_weight < 0.0:
             raise ValueError('V0.1 reconstruction_weight must be non-negative.')
+        if args.model == 'v02_koopman':
+            from models.v02.training import LossWeights
+            LossWeights(args.native_weight, args.reconstruction_weight,
+                        args.prediction_weight, args.linearity_weight)
+            if min(args.hidden_dim, args.generator_norm_bound, args.max_grad_norm) <= 0:
+                raise ValueError('V0.2 dimensions and norm limits must be positive.')
+            if args.correction_interval < 0 or (args.identity_dynamics and args.correction_interval):
+                raise ValueError('Invalid V0.2 correction/identity configuration.')
     else:
         raise ValueError(f'Unknown model: {args.model}')
 
@@ -106,6 +115,7 @@ def set_config(args):
     tag = {
         's0_ode': 'baseline_official_adgn',
         'v01_linear': 'method_v01_linear',
+        'v02_koopman': 'method_v02_koopman',
     }[args.model]
     if str(args.run_tag).strip():
         tag = f'{tag}_{_safe_tag(args.run_tag)}'
@@ -121,6 +131,9 @@ def _model_components(model_name):
         from models.s0 import Client, Server
     elif model_name == 'v01_linear':
         from models.v01 import Client, Server
+    elif model_name == 'v02_koopman':
+        from models.v02.client import Client
+        from models.v02.server import Server
     else:
         raise ValueError(f'Unknown model: {model_name}')
     return Client, Server

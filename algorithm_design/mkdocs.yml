@@ -74,6 +74,9 @@ nav:
           - 算法设计: methodv01.md
           - 代码实现: methodv01-implementation.md
           - 实验分析: experiments/methodv01.md
+      - Method V0.2:
+          - 算法与实现: methodv02.md
+          - 本地诊断: experiments/methodv02.md
   - 参考论文:
       - 论文总览: references/index.md
       - DeepKoopman: references/deepkoopman.md

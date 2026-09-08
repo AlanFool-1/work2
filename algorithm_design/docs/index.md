@@ -22,7 +22,8 @@ hide:
 
 <div class="hero-actions">
 
-[进入 Method V0.1](methodv01.md){ .md-button .md-button--primary }
+[进入 Method V0.2](methodv02.md){ .md-button .md-button--primary }
+[回看 Method V0.1](methodv01.md){ .md-button }
 [回看 Method V0](methodv0.md){ .md-button }
 [查看实验分析](experiments/index.md){ .md-button }
 [浏览参考论文](references/index.md){ .md-button }
@@ -32,7 +33,7 @@ hide:
 </div>
 
 <div class="metric-row">
-<div class="metric"><strong>02</strong><span>方法版本</span></div>
+<div class="metric"><strong>03</strong><span>方法版本</span></div>
 <div class="metric"><strong>04</strong><span>核心参考论文</span></div>
 <div class="metric"><strong>01</strong><span>初始实验</span></div>
 <div class="metric"><strong>01</strong><span>固定研究主线</span></div>
@@ -46,11 +47,12 @@ hide:
 
 <p class="card-kicker">CURRENT METHOD</p>
 
-### [Method V0.1](methodv01.md)
+### [Method V0.2](methodv02.md)
 
-用节点级编码器、低维线性图动力学和任务读出组成一个端到端 GNN，取消“先训练完整 ODE-GNN、再拟合本地代理”的串行流程。
+联合训练非线性参考轨迹与节点级 E–K–D，将解码器接入分类并检验多步演化。首版代码和本地消融已完成，准确率提升尚未得到支持。
 
-[查看 V0.1 设计](methodv01.md){ .md-button .md-button--primary }
+[查看 V0.2 实现](methodv02.md){ .md-button .md-button--primary }
+[查看本地诊断](experiments/methodv02.md){ .md-button }
 
 </div>
 
