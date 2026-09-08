@@ -1,0 +1,9 @@
+{
+  "run_tag": "official_adgn_k16_all11_20260908_040956",
+  "selection": "per-client best validation round paired test metric",
+  "units": "percent",
+  "results": {
+    "Cora": {"metric": "ACC", "mean": 80.2680, "client_std": 11.3101},
+    "CiteSeer": {"metric": "ACC", "mean": 76.1752, "client_std": 10.2351}
+  }
+}

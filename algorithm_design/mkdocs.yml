@@ -1,0 +1,83 @@
+site_name: Graph Dynamics Algorithm Design
+site_description: Algorithm design workspace for graph dynamical systems
+site_url: http://127.0.0.1:7891/
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  language: zh
+  custom_dir: overrides
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: 切换到浅色模式
+
+plugins:
+  - search
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - javascripts/dynamics-demo.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - 总览: index.md
+  - 方法设计:
+      - Method V0:
+          - 算法设计: methodv0.md
+          - 代码实现: methodv0-implementation.md
+          - 实验分析: experiments/index.md
+      - Method V0.1:
+          - 算法设计: methodv01.md
+          - 代码实现: methodv01-implementation.md
+          - 实验分析: experiments/methodv01.md
+  - 参考论文:
+      - 论文总览: references/index.md
+      - DeepKoopman: references/deepkoopman.md
+      - Balanced Neural ODEs: references/balanced-neural-odes.md
+      - Course Correcting Koopman: references/course-correcting.md
+      - MetaKoopman: references/metakoopman.md
+  - 维护说明: guide/authoring.md

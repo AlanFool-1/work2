@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if page and page.meta and page.meta.description and not page.is_homepage %}
+<aside class="paper-context-strip" aria-label="页面摘要">
+  <p class="paper-context-strip__description">{{ page.meta.description }}</p>
+  {% if page.meta.tags %}
+  <p class="paper-context-strip__tags">{{ page.meta.tags | join(' · ') }}</p>
+  {% endif %}
+</aside>
+{% endif %}
+{{ super() }}
+{% endblock %}
