@@ -81,6 +81,9 @@ nav:
       - 论文总览: references/index.md
       - DeepKoopman: references/deepkoopman.md
       - Balanced Neural ODEs: references/balanced-neural-odes.md
+      - DMD-GNN: references/dmd-gnn.md
+      - Compositional Koopman: references/compositional-koopman.md
+      - Micro-Macro Coupled Koopman: references/micro-macro-coupled-koopman.md
       - Course Correcting Koopman: references/course-correcting.md
       - MetaKoopman: references/metakoopman.md
   - 维护说明: guide/authoring.md

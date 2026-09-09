@@ -11,12 +11,12 @@ tags:
 
 # Koopman 参考论文
 
-这一组论文不是四个需要机械拼接的模块，而是围绕同一个问题提供四种互补的
-技术视角：**如何找到有用的动力学坐标，如何压缩，如何避免长程滚动漂移，
-以及如何在新环境中快速适配算子。**
+这一组论文不是需要机械拼接的模块，而是围绕同一个问题提供七种互补的
+技术视角：**如何找到有用的动力学坐标，如何从图状态提取主导动力学，如何压缩，
+如何避免长程滚动漂移，以及如何在新环境中快速适配算子。**
 
 ```text
-学习动力学坐标 → 潜空间演化 → 完整轨迹验证 → 条件变化下适配
+学习动力学坐标 → 图状态的主导动力学 → 潜空间演化 → 完整轨迹验证 → 条件变化下适配
 ```
 
 当前项目把它们迁移到异质图联邦学习时，先把客户端看成私有图动力系统
@@ -24,7 +24,7 @@ tags:
 动力学知识。论文中的 \(K\)、编码器和解码器不能直接跨客户端平均；只有在公共
 probe、功能坐标或显式 transport 规则下，它们才可能具有可比较的含义。
 
-## 四篇论文的分工
+## 七篇论文的分工
 
 <div class="reference-grid" markdown>
 
@@ -54,7 +54,43 @@ probe、功能坐标或显式 transport 规则下，它们才可能具有可比�
 
 <div class="reference-card" markdown>
 
-<p class="card-kicker">03 · ROLLING CORRECTION</p>
+<p class="card-kicker">03 · GRAPH DYNAMICS</p>
+
+### [DMD-GNN](dmd-gnn.md)
+
+把 GNN 层间传播当作动力系统，用截断 DMD 模态构造低秩谱滤波和稠密图传播。
+
+[阅读方法](dmd-gnn.md){ .md-button }
+
+</div>
+
+<div class="reference-card" markdown>
+
+<p class="card-kicker">04 · COMPOSITIONAL DYNAMICS</p>
+
+### [Compositional Koopman](compositional-koopman.md)
+
+用对象中心图编码器和按关系共享的块矩阵，支持可变对象数的预测与模型控制。
+
+[阅读方法](compositional-koopman.md){ .md-button }
+
+</div>
+
+<div class="reference-card" markdown>
+
+<p class="card-kicker">05 · MULTISCALE TRAFFIC</p>
+
+### [Micro-Macro Coupled Koopman](micro-macro-coupled-koopman.md)
+
+在车辆中心动态图上耦合宏观流量 PDE 与微观车辆 Koopman 控制，实现无历史预测。
+
+[阅读方法](micro-macro-coupled-koopman.md){ .md-button }
+
+</div>
+
+<div class="reference-card" markdown>
+
+<p class="card-kicker">06 · ROLLING CORRECTION</p>
 
 ### [Course Correcting](course-correcting.md)
 
@@ -66,7 +102,7 @@ probe、功能坐标或显式 transport 规则下，它们才可能具有可比�
 
 <div class="reference-card" markdown>
 
-<p class="card-kicker">04 · OPERATOR ADAPTATION</p>
+<p class="card-kicker">07 · OPERATOR ADAPTATION</p>
 
 ### [MetaKoopman](metakoopman.md)
 
@@ -82,6 +118,9 @@ probe、功能坐标或显式 transport 规则下，它们才可能具有可比�
 | --- | --- | --- |
 | [DeepKoopman](deepkoopman.md) | 如何联合学习坐标、线性演化和解码器？ | 以多初值、多步自由滚动共同塑造可预测坐标。 |
 | [Balanced Neural ODEs](balanced-neural-odes.md) | 如何让潜空间真正压缩而不是只重建？ | 用轨迹级变分信息约束识别必要动力学维度。 |
+| [DMD-GNN](dmd-gnn.md) | 如何从 GNN 状态估计主导图动力学？ | 用多列节点快照、截断 SVD 和 DMD 模态构造低秩谱传播。 |
+| [Compositional Koopman](compositional-koopman.md) | 如何让 Koopman 模型适应可变对象数？ | 用对象中心嵌入和按关系共享的块矩阵降低识别成本。 |
+| [Micro-Macro Coupled Koopman](micro-macro-coupled-koopman.md) | 如何统一微观车辆和宏观流量？ | 用车辆中心图 PDE、意图门控和有界 Koopman control 建立双向耦合。 |
 | [Course Correcting Koopman](course-correcting.md) | 为什么潜态长程滚动会漂移？ | 将周期重编码作为漂移诊断和推理期纠偏对照。 |
 | [MetaKoopman](metakoopman.md) | 算子如何适应分布变化并表达不确定性？ | 固定表示后，用小规模 Bayesian/ridge 更新替代粗糙参数平均。 |
 
@@ -98,7 +137,7 @@ probe、功能坐标或显式 transport 规则下，它们才可能具有可比�
 ## 阅读边界
 
 - 本页面主要记录动机、方法和可迁移技术，不复述论文实验结果。
-- 四篇论文都没有直接解决异质图之间的功能坐标对齐；这仍是本项目的研究问题。
+- 这些论文都没有直接解决异质图之间的功能坐标对齐；这仍是本项目的研究问题。
 - 低维 \(K\) 的参数量很小，不代表编码器、解码器、图缓存和完整节点解码成本很小。
 - 大图的拉普拉斯、邻接矩阵和节点特征矩阵不做 SVD；图信息通过稀疏消息传递和
   小型潜空间线性代数处理。
