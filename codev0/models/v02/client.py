@@ -24,7 +24,8 @@ class Client(S0Client):
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
         output = self.model.forward_with_aux(batch, auxiliary=self.loss_weights.auxiliary)
-        loss, values = objective(self.model, output, batch.y, batch.train_mask, self.loss_weights)
+        loss, values = objective(self.model, output, batch.y, batch.train_mask, self.loss_weights,
+                                 normalization=getattr(self.args, 'loss_normalization', 'pooled'))
         grad_norm = checked_step(loss, self.model, self.optimizer, self.args.max_grad_norm)
         self._last_train_lss = loss.detach()
         self._last_v02 = {key: float(value.detach()) for key, value in values.items()}

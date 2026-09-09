@@ -76,7 +76,7 @@ nav:
           - 实验分析: experiments/methodv01.md
       - Method V0.2:
           - 算法与实现: methodv02.md
-          - 本地诊断: experiments/methodv02.md
+          - 联邦验证与本地诊断: experiments/methodv02.md
   - 参考论文:
       - 论文总览: references/index.md
       - DeepKoopman: references/deepkoopman.md

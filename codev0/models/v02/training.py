@@ -42,18 +42,29 @@ def relative_mse(prediction, target):
     return (prediction - target).square().mean() / target.square().mean().clamp_min(1e-6)
 
 
-def objective(model, output, labels, train_mask, weights: LossWeights):
+def trajectory_mse(prediction, target, normalization='pooled'):
+    if normalization == 'pooled':
+        return relative_mse(prediction, target)
+    if normalization != 'per_time':
+        raise ValueError('Unknown V0.2 loss normalization.')
+    target = target.detach()
+    errors = (prediction - target).square().mean(dim=(-2, -1))
+    scales = target.square().mean(dim=(-2, -1)).clamp_min(1e-6)
+    return (errors / scales).mean()
+
+
+def objective(model, output, labels, train_mask, weights: LossWeights, *, normalization='pooled'):
     values = {
         'task_loss': task_loss(output.logits, labels, train_mask),
         'native_task_loss': task_loss(output.native_logits, labels, train_mask),
-        'reconstruction_loss': relative_mse(output.reconstructions, output.native_states),
+        'reconstruction_loss': trajectory_mse(output.reconstructions, output.native_states, normalization),
     }
     prediction_terms, linear_terms = [], []
     for horizon, predicted in output.predictions.items():
-        prediction_terms.append(relative_mse(
-            model.decoder(predicted), output.native_states[horizon:],
+        prediction_terms.append(trajectory_mse(
+            model.decoder(predicted), output.native_states[horizon:], normalization,
         ))
-        linear_terms.append(relative_mse(predicted, output.encoded_targets[horizon:]))
+        linear_terms.append(trajectory_mse(predicted, output.encoded_targets[horizon:], normalization))
     zero = values['task_loss'].new_zeros(())
     values['prediction_loss'] = torch.stack(prediction_terms).mean() if prediction_terms else zero
     values['linearity_loss'] = torch.stack(linear_terms).mean() if linear_terms else zero

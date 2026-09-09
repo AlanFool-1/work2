@@ -96,6 +96,27 @@ class StableGraphGenerator(nn.Module):
         return z
 
 
+class BoundedGraphGenerator(StableGraphGenerator):
+    """Norm-bounded linear generator allowing growth in learned observables.
+
+    Initialized from the dissipative model's exact matrices so paired variants
+    start with the same input/output function. No dissipativity or long-horizon
+    contraction is claimed for this variant.
+    """
+    def __init__(self, initial: StableGraphGenerator):
+        nn.Module.__init__(self)
+        self.norm_bound = initial.norm_bound
+        with torch.no_grad():
+            a0, a1 = initial.matrices()
+        self.self_matrix = nn.Parameter(a0.clone())
+        self.neighbor_matrix = nn.Parameter(a1.clone())
+
+    def matrices(self):
+        total = self.self_matrix.norm() + self.neighbor_matrix.norm()
+        scale = (self.norm_bound / total.clamp_min(1e-12)).clamp(max=1.0)
+        return self.self_matrix * scale, self.neighbor_matrix * scale
+
+
 @dataclass
 class V02Output:
     logits: torch.Tensor
@@ -114,7 +135,7 @@ class GraphKoopmanBackbone(nn.Module):
         latent_dim: int = 32, width: int = 64, num_steps: int = 16,
         step_size: float = 0.1, damping: float = 0.1,
         generator_norm_bound: float = 4.0, correction_interval: int = 0,
-        identity_dynamics: bool = False,
+        identity_dynamics: bool = False, generator_mode: str = 'dissipative',
     ):
         super().__init__()
         if min(input_dim, output_dim, state_dim, latent_dim, width, num_steps) <= 0:
@@ -123,12 +144,15 @@ class GraphKoopmanBackbone(nn.Module):
             raise ValueError('Step size must be positive and correction interval non-negative.')
         if identity_dynamics and correction_interval:
             raise ValueError('Identity ablation must not introduce nonlinear reencoding.')
+        if generator_mode not in {'dissipative', 'bounded'}:
+            raise ValueError('Unknown V0.2 generator mode.')
         self.num_steps = int(num_steps)
         self.step_size = float(step_size)
         self.state_dim = int(state_dim)
         self.latent_dim = int(latent_dim)
         self.correction_interval = int(correction_interval)
         self.identity_dynamics = bool(identity_dynamics)
+        self.generator_mode = generator_mode
         self.stem = mlp(2 * input_dim + 1, width, state_dim)
         self.native_self = nn.Linear(state_dim, state_dim, bias=False)
         self.native_neighbor = nn.Linear(state_dim, state_dim)
@@ -138,6 +162,8 @@ class GraphKoopmanBackbone(nn.Module):
         self.decoder = mlp(latent_dim, width, state_dim)
         self.readout = nn.Linear(state_dim, output_dim)
         self.generator = StableGraphGenerator(latent_dim, damping, generator_norm_bound)
+        if generator_mode == 'bounded':
+            self.generator = BoundedGraphGenerator(self.generator)
         self.horizons = tuple(sorted({min(s, num_steps) for s in (1, 4, 8, num_steps)}))
 
     def initial_state(self, data, operator):
@@ -228,4 +254,5 @@ def build_v02_model(args):
         damping=args.linear_gamma, generator_norm_bound=args.generator_norm_bound,
         correction_interval=args.correction_interval,
         identity_dynamics=args.identity_dynamics,
+        generator_mode=getattr(args, 'generator_mode', 'dissipative'),
     )

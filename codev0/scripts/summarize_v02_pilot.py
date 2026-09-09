@@ -9,8 +9,12 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
+    parser.add_argument('--reference-result', type=Path, action='append', default=[],
+                        help='Read an existing matched result without copying or rerunning it.')
     args = parser.parse_args()
-    results = [json.loads(path.read_text()) for path in sorted(args.root.glob('*/result.json'))]
+    paths = sorted(args.root.glob('*/result.json')) + args.reference_result
+    paths = list(dict.fromkeys(path.resolve() for path in paths))
+    results = [json.loads(path.read_text()) for path in paths]
     if not results:
         raise ValueError('No completed pilot runs found.')
     # Match the substantive protocol; actual compute and parameter counts vary.
@@ -31,8 +35,11 @@ def main():
     ]
     for result in results:
         best, cost = result['best'], result['cost']
+        label = result['variant']
+        if label == 'joint':
+            label += f' ({result["config"].get("generator_mode", "dissipative")}, {result["config"].get("loss_normalization", "pooled")})'
         lines.append(
-            f'| {result["variant"]} | {best["epoch"]} | {100 * best["validation"]["metric"]:.2f}% '
+            f'| {label} | {best["epoch"]} | {100 * best["validation"]["metric"]:.2f}% '
             f'| {100 * best["paired_test"]["metric"]:.2f}% | {100 * best["paired_test"]["f1"]:.2f}% '
             f'| {cost["training_parameters"]:,} / {cost["deployment_parameters"]:,} '
             f'| {result["config"]["device"]} | {result["train_seconds"]:.2f} |'
@@ -49,6 +56,7 @@ def main():
             continue
         values = result['dynamics']
         lines += [
+            f'### {result["config"].get("generator_mode", "dissipative")} / {result["config"].get("loss_normalization", "pooled")}', '',
             f'- Reconstruction NMSE: {values["reconstruction_nmse"]:.6f}',
             f'- Latent norm final / initial: {values["latent_norm_ratio"]:.6f}',
             f'- Latent effective rank: {values["latent_effective_rank"]:.3f}',
@@ -67,6 +75,7 @@ def main():
     (args.root / 'summary.json').write_text(json.dumps({
         'protocol': {key: reference[key] for key in keys},
         'scope': 'single-partition pilot; not a federated or all-client result',
+        'source_results': [str(path) for path in paths],
         'results': results,
     }, indent=2) + '\n', encoding='utf-8')
     print('\n'.join(lines))

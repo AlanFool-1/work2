@@ -29,6 +29,8 @@ class V02StructuredLogger(StructuredLogger):
             'reference_transitions_needed_for_inference': False,
             'federated_payload': 'entire model including training-only reference modules',
             'correction_interval': model.correction_interval,
+            'generator_mode': model.generator_mode,
+            'loss_normalization': getattr(args, 'loss_normalization', 'pooled'),
             'loss_diagnostics': 'last local step, before update; trajectory diagnostics after update',
         })
 

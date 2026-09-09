@@ -61,6 +61,8 @@ def parse_args():
     parser.add_argument('--linear-step-size', type=float, default=0.1)
     parser.add_argument('--linear-gamma', type=float, default=0.1)
     parser.add_argument('--generator-norm-bound', type=float, default=4.0)
+    parser.add_argument('--generator-mode', choices=['dissipative', 'bounded'], default='dissipative')
+    parser.add_argument('--loss-normalization', choices=['pooled', 'per_time'], default='pooled')
     parser.add_argument('--correction-interval', type=int, default=0)
     parser.add_argument('--native-weight', type=float, default=1.0)
     parser.add_argument('--reconstruction-weight', type=float, default=1.0)
@@ -90,6 +92,7 @@ def make_model(args):
         generator_norm_bound=args.generator_norm_bound,
         correction_interval=args.correction_interval,
         identity_dynamics=args.variant == 'identity',
+        generator_mode=getattr(args, 'generator_mode', 'dissipative'),
     )
 
 
@@ -192,7 +195,8 @@ def main():
             batch.x = data.x * (1.0 + args.feature_noise * torch.randn_like(data.x))
         if joint:
             output = model.forward_with_aux(batch, auxiliary=weights.auxiliary)
-            loss, pieces = objective(model, output, batch.y, batch.train_mask, weights)
+            loss, pieces = objective(model, output, batch.y, batch.train_mask, weights,
+                                     normalization=args.loss_normalization)
         else:
             loss = task_loss(predict(batch), batch.y, batch.train_mask)
             pieces = {'task_loss': loss}

@@ -67,6 +67,8 @@ class Parser:
         parser.add_argument('--prediction-weight', type=float, default=1.0)
         parser.add_argument('--linearity-weight', type=float, default=0.1)
         parser.add_argument('--generator-norm-bound', type=float, default=4.0)
+        parser.add_argument('--generator-mode', choices=['dissipative', 'bounded'], default='dissipative')
+        parser.add_argument('--loss-normalization', choices=['pooled', 'per_time'], default='pooled')
         parser.add_argument('--correction-interval', type=int, default=0)
         parser.add_argument('--identity-dynamics', action='store_true')
         parser.add_argument('--max-grad-norm', type=float, default=5.0)

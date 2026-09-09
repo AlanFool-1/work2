@@ -49,10 +49,10 @@ hide:
 
 ### [Method V0.2](methodv02.md)
 
-联合训练非线性参考轨迹与节点级 E–K–D，将解码器接入分类并检验多步演化。首版代码和本地消融已完成，准确率提升尚未得到支持。
+联合训练非线性参考轨迹与节点级 E–K–D，将解码器接入分类并检验多步演化。已进入 Cora 完整 100 轮联邦验证；实验页区分本地诊断、客户端验证选模和最终全局成绩，尚未证明表达能力提升。
 
 [查看 V0.2 实现](methodv02.md){ .md-button .md-button--primary }
-[查看本地诊断](experiments/methodv02.md){ .md-button }
+[查看联邦与本地实验](experiments/methodv02.md){ .md-button }
 
 </div>
 
