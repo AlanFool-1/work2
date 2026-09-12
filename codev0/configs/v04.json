@@ -1,0 +1,47 @@
+{
+  "_defaults": {
+    "n_workers": 10,
+    "n_clients": 10,
+    "n_rnds": 100,
+    "n_eps": 1,
+    "frac": 1.0,
+    "aggregation": "equal",
+    "state_dim": 64,
+    "encoder_width": 128,
+    "observable_aux_dim": 32,
+    "observable_width": 64,
+    "field_hidden_dim": 64,
+    "field_scale_init": 0.1,
+    "field_scale_min": 0.001,
+    "spectral_order": 1,
+    "generator_gamma": 0.0001,
+    "generator_low_damping_init": 0.0001,
+    "generator_high_damping_init": 2.0,
+    "integration_time": 1.0,
+    "solver_step_size": 0.1,
+    "solver": "rk4",
+    "classifier_width": 64,
+    "dropout": 0.3,
+    "reference_mode": "anchor",
+    "lie_warmup_rounds": 10,
+    "lie_ramp_end_round": 30,
+    "lie_weight_max": 0.05,
+    "lie_speed_weight": 0.0,
+    "lr_main": 0.003,
+    "lr_field": 0.001,
+    "lr_probe": 0.003,
+    "weight_decay": 0.0001,
+    "max_grad_norm": 5.0
+  },
+  "Cora": {
+    "clients_10": {}
+  },
+  "ogbn-arxiv": {
+    "state_dim": 128,
+    "encoder_width": 128,
+    "observable_aux_dim": 64,
+    "observable_width": 128,
+    "field_hidden_dim": 128,
+    "classifier_width": 128
+  }
+}

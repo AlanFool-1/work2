@@ -40,14 +40,48 @@ class StructuredLogger:
     the full history.
     """
 
-    METRIC_FIELDS = [
-        'round', 'train_loss', 'val_loss', 'val_accuracy', 'test_loss',
-        'test_accuracy', 'local_best_test_accuracy', 'round_seconds',
+    V04_FIELDS = [
+        'task_loss', 'train_accuracy',
+        'probe_loss', 'probe_accuracy', 'probe_grad_norm',
+        'field_anchor_loss', 'field_task_cosine', 'field_rms',
+        'field_raw_rms', 'field_scale', 'task_direction_rms',
+        'field_grad_norm', 'lie_weight', 'lie_loss', 'lie_cosine',
+        'lie_target_rms', 'koopman_rhs_rms', 'lie_speed_ratio',
+        'z0_norm', 'zt_norm', 'z_norm_ratio', 'rhs0_norm', 'nfe',
+        'main_grad_norm', 'g0_symmetric_maxeig', 'g0_max_real_part',
+        'g1_symmetric_maxeig', 'g1_max_real_part',
+        'main_m_rms', 'main_v_rms', 'main_v_block_mean',
+        'main_adaptive_step_rms', 'global_v_step',
+        'global_v_block_mean',
     ]
+    #: Method 1.1 Port-Hamiltonian diagnostics. Kept separate from V04_FIELDS so
+    #: a non-v11 run logs zeros rather than reusing those columns with a
+    #: different meaning. Names are prefixed to avoid colliding with the V0.4
+    #: trajectory columns. Bands cover basis_degree up to 3; higher degrees
+    #: simply log nothing.
+    V11_FIELDS = [
+        'manifold_loss', 'operator_speed_loss',
+        'ph_z0_norm', 'ph_zT_norm',
+        'trajectory_growth_ratio', 'trajectory_max_ratio',
+        'hT_rms', 'auxT_rms',
+        'band0_alpha', 'band0_beta', 'band0_gamma',
+        'band0_J_fro', 'band0_R_fro', 'band0_sym_max_eig', 'band0_spectral_norm',
+        'band1_alpha', 'band1_beta', 'band1_gamma',
+        'band1_J_fro', 'band1_R_fro', 'band1_sym_max_eig', 'band1_spectral_norm',
+        'band2_alpha', 'band2_beta', 'band2_gamma',
+        'band2_J_fro', 'band2_R_fro', 'band2_sym_max_eig', 'band2_spectral_norm',
+        'band3_alpha', 'band3_beta', 'band3_gamma',
+        'band3_J_fro', 'band3_R_fro', 'band3_sym_max_eig', 'band3_spectral_norm',
+    ]
+    METRIC_FIELDS = [
+        'round', 'optimizer_state_mode',
+        'train_loss', 'val_loss', 'val_accuracy', 'test_loss',
+        'test_accuracy', 'local_best_test_accuracy', 'round_seconds',
+    ] + V04_FIELDS + V11_FIELDS
     CLIENT_FIELDS = [
         'round', 'client_id', 'train_loss', 'val_loss', 'val_accuracy',
         'test_loss', 'test_accuracy', 'test_f1', 'train_size',
-    ]
+    ] + V04_FIELDS + V11_FIELDS
     BEST_FIELDS = [
         'client_id', 'best_round', 'val_accuracy', 'test_accuracy', 'test_f1',
     ]
@@ -200,12 +234,17 @@ class StructuredLogger:
                 'test_accuracy': float(item['test_accuracy']),
                 'test_f1': float(item['test_f1']),
                 'train_size': int(item['train_size']),
+                **{
+                    name: float(item.get(name, 0.0))
+                    for name in self.V04_FIELDS + self.V11_FIELDS
+                },
             }
             for item in ordered
         ]
         self._update_client_best(client_rows)
         metric_row = {
             'round': round_number,
+            'optimizer_state_mode': str(self.args.optimizer_state_mode),
             'train_loss': float(np.mean([row['train_loss'] for row in client_rows])),
             'val_loss': float(np.mean([row['val_loss'] for row in client_rows])),
             'val_accuracy': float(np.mean([row['val_accuracy'] for row in client_rows])),
@@ -217,6 +256,10 @@ class StructuredLogger:
                 if row['best_round'] > 0
             ])),
             'round_seconds': float(time.perf_counter() - self.round_started),
+            **{
+                name: float(np.mean([row[name] for row in client_rows]))
+                for name in self.V04_FIELDS + self.V11_FIELDS
+            },
         }
         self._append_csv('metrics.csv', [metric_row], self.METRIC_FIELDS)
         self._write_csv(

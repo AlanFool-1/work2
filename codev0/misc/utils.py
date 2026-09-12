@@ -57,11 +57,13 @@ def get_state_dict(model):
     return state_dict
 
 
-def set_state_dict(model, state_dict, gpu_id, skip_stat=False):
+def set_state_dict(model, state_dict, gpu_id, skip_stat=False, skip_mask=False):
     tensor_state = OrderedDict()
     current_state = model.state_dict()
     for key, value in state_dict.items():
         if skip_stat and ('running' in key or 'tracked' in key):
+            tensor_state[key] = current_state[key]
+        elif skip_mask and ('mask' in key or 'pre' in key or 'pos' in key):
             tensor_state[key] = current_state[key]
         elif len(np.shape(value)) == 0:
             tensor_state[key] = torch.tensor(value).cuda(gpu_id)

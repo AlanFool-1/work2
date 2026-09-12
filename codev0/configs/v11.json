@@ -1,0 +1,54 @@
+{
+  "_defaults": {
+    "n_workers": 10,
+    "n_clients": 10,
+    "n_rnds": 100,
+    "n_eps": 1,
+    "frac": 1.0,
+    "aggregation": "equal",
+    "log_profile": "diagnostic",
+
+    "lr_main": 0.001,
+    "weight_decay": 0.0005,
+    "max_grad_norm": 1.0,
+
+    "v11_hidden_dim": 64,
+    "v11_aux_dim": 32,
+    "v11_encoder_hidden": 128,
+    "v11_encoder_layers": 2,
+    "v11_input_dropout": 0.20,
+    "v11_encoder_dropout": 0.35,
+    "v11_classifier_dropout": 0.50,
+    "v11_gauge_fix": true,
+
+    "v11_observable_hidden": 64,
+    "v11_observable_activation": "tanh",
+    "v11_aux_scale": 1.0,
+
+    "v11_basis_degree": 2,
+    "v11_operator_rank": 8,
+    "v11_generator_type": "low_rank_ph",
+    "v11_band_parameterization": "shared_core",
+    "v11_gamma_init": 0.0001,
+    "v11_min_gamma": 0.0,
+    "v11_learnable_gamma": true,
+    "v11_dissipation_basis_init": 0.05,
+    "v11_dissipation_gain_init": 0.001,
+    "v11_conservative_init": 0.05,
+
+    "v11_ode_horizon": 1.0,
+    "v11_ode_steps": 8,
+    "v11_solver": "rk4",
+
+    "v11_symmetrize_edges": false,
+    "v11_remove_self_loops": true,
+
+    "v11_classifier_on": "h",
+    "v11_manifold_weight": 0.001,
+    "v11_label_smoothing": 0.05,
+    "v11_operator_speed_weight": 0.0001
+  },
+  "Cora": {
+    "clients_10": {}
+  }
+}
