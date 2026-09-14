@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 from datetime import datetime
 
 from misc.utils import seed_everything
-from models.fedaux import Client as FedAuxClient, Server as FedAuxServer
-from models.fedavg import Client as FedAvgClient, Server as FedAvgServer
-from models.fedpub import Client as FedPubClient, Server as FedPubServer
-from models.local import Client as LocalClient, Server as LocalServer
-from models.v04 import Client as V04Client, Server as V04Server
-from models.v11 import Client as V11Client, Server as V11Server
 from modules.multiprocs import ParentProcess
 from myparser import Parser
 
@@ -31,17 +26,22 @@ DATASET_META = {
     'Questions': (301, 1),
 }
 
-MODEL_REGISTRY = {
-    'v04': (V04Server, V04Client),
-    'v11': (V11Server, V11Client),
-    'local': (LocalServer, LocalClient),
-    'fedavg': (FedAvgServer, FedAvgClient),
-    'fedpub': (FedPubServer, FedPubClient),
-    'fedaux': (FedAuxServer, FedAuxClient),
+MODEL_MODULES = {
+    'feddgn_local': 'models.feddgn_local',
+    'feddgn_avg': 'models.feddgn_avg',
+    'v04': 'models.v04',
+    'v11': 'models.v11',
+    'local': 'models.local',
+    'fedavg': 'models.fedavg',
+    'fedpub': 'models.fedpub',
+    'fedaux': 'models.fedaux',
 }
 
 V04_MODELS = {'v04'}
 V11_MODELS = {'v11'}
+FEDDGN_LOCAL_MODELS = {'feddgn_local'}
+FEDDGN_AVG_MODELS = {'feddgn_avg'}
+FEDDGN_MODELS = FEDDGN_LOCAL_MODELS | FEDDGN_AVG_MODELS
 REFERENCE_MODELS = {'local', 'fedavg', 'fedpub', 'fedaux'}
 
 
@@ -110,7 +110,44 @@ def set_config(args):
         raise ValueError('Worker/client/training counts must be positive.')
     if not 0.0 < float(args.frac) <= 1.0:
         raise ValueError('frac must lie in (0, 1].')
-    if args.model in V11_MODELS:
+    if args.model in FEDDGN_MODELS:
+        args.local_optimizer = 'adam'
+        if args.model in FEDDGN_LOCAL_MODELS:
+            args.optimizer_state_mode = 'local_persistent_adam'
+            if not args.local_only:
+                raise ValueError(
+                    'feddgn_local requires local_only=true.'
+                )
+        else:
+            if args.local_only:
+                raise ValueError(
+                    'feddgn_avg is the FedAvg variant; omit --local-only.'
+                )
+            optimizer_modes = {
+                'persistent_adam': 'fedavg_model_persistent_adam',
+                'reset_adam': 'fedavg_model_reset_adam',
+                'block_v': 'fedadamw_v_block',
+            }
+            args.optimizer_state_mode = optimizer_modes[
+                args.feddgn_fed_optimizer
+            ]
+        if min(args.feddgn_hidden_dim, args.feddgn_steps) <= 0:
+            raise ValueError('FedDGN hidden dimension and steps must be positive.')
+        if min(args.feddgn_lr, args.feddgn_step_size) <= 0:
+            raise ValueError('FedDGN optimizer and step sizes must be positive.')
+        if args.feddgn_max_grad_norm < 0:
+            raise ValueError(
+                'FedDGN max_grad_norm must be non-negative; 0 disables clipping.'
+            )
+        if args.feddgn_gamma < 0 or args.weight_decay < 0:
+            raise ValueError('FedDGN damping and weight decay must be non-negative.')
+        if not 0.0 <= args.feddgn_input_dropout < 1.0:
+            raise ValueError('FedDGN input dropout must lie in [0, 1).')
+        if not 0.0 <= args.feddgn_classifier_dropout < 1.0:
+            raise ValueError('FedDGN classifier dropout must lie in [0, 1).')
+        if not 0.0 <= args.feddgn_label_smoothing < 1.0:
+            raise ValueError('FedDGN label smoothing must lie in [0, 1).')
+    elif args.model in V11_MODELS:
         # Local-only backbone: the shared FedAdamW-v protocol does not apply.
         # Method1LocalConfig.validate() owns the remaining field checks.
         args.local_optimizer = 'adamw'
@@ -210,7 +247,8 @@ def set_config(args):
 def main(args):
     args = set_config(args)
     seed_everything(args.seed, torch_seed=True)
-    server_class, client_class = MODEL_REGISTRY[args.model]
+    model_module = importlib.import_module(MODEL_MODULES[args.model])
+    server_class, client_class = model_module.Server, model_module.Client
     print(
         f'[Run] model={args.model}, dataset={args.dataset}, clients={args.n_clients}, '
         f'seed={args.seed}, rounds={args.n_rnds}, local_epochs={args.n_eps}, '

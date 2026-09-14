@@ -73,15 +73,22 @@ class StructuredLogger:
         'band3_alpha', 'band3_beta', 'band3_gamma',
         'band3_J_fro', 'band3_R_fro', 'band3_sym_max_eig', 'band3_spectral_norm',
     ]
+    FEDDGN_FIELDS = [
+        'intrinsic_rms', 'force_rms', 'force_intrinsic_ratio',
+        'state_rms', 'feddgn_lr',
+    ]
+    DIAGNOSTIC_FIELDS = (
+        V04_FIELDS + V11_FIELDS + FEDDGN_FIELDS
+    )
     METRIC_FIELDS = [
         'round', 'optimizer_state_mode',
         'train_loss', 'val_loss', 'val_accuracy', 'test_loss',
         'test_accuracy', 'local_best_test_accuracy', 'round_seconds',
-    ] + V04_FIELDS + V11_FIELDS
+    ] + DIAGNOSTIC_FIELDS
     CLIENT_FIELDS = [
         'round', 'client_id', 'train_loss', 'val_loss', 'val_accuracy',
         'test_loss', 'test_accuracy', 'test_f1', 'train_size',
-    ] + V04_FIELDS + V11_FIELDS
+    ] + DIAGNOSTIC_FIELDS
     BEST_FIELDS = [
         'client_id', 'best_round', 'val_accuracy', 'test_accuracy', 'test_f1',
     ]
@@ -236,7 +243,7 @@ class StructuredLogger:
                 'train_size': int(item['train_size']),
                 **{
                     name: float(item.get(name, 0.0))
-                    for name in self.V04_FIELDS + self.V11_FIELDS
+                    for name in self.DIAGNOSTIC_FIELDS
                 },
             }
             for item in ordered
@@ -258,7 +265,7 @@ class StructuredLogger:
             'round_seconds': float(time.perf_counter() - self.round_started),
             **{
                 name: float(np.mean([row[name] for row in client_rows]))
-                for name in self.V04_FIELDS + self.V11_FIELDS
+                for name in self.DIAGNOSTIC_FIELDS
             },
         }
         self._append_csv('metrics.csv', [metric_row], self.METRIC_FIELDS)

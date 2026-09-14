@@ -16,7 +16,8 @@ class Parser:
         parser.add_argument(
             '--model',
             choices=[
-                'v04', 'v11', 'local', 'fedavg', 'fedpub', 'fedaux',
+                'v04', 'v11', 'feddgn_local', 'feddgn_avg',
+                'local', 'fedavg', 'fedpub', 'fedaux',
             ],
             default='v04',
         )
@@ -96,6 +97,33 @@ class Parser:
         parser.add_argument('--lr-field', type=float, default=0.001)
         parser.add_argument('--lr-probe', type=float, default=0.003)
 
+        # FedDGN: official-style A-DGN dynamics with an inactive force port.
+        parser.add_argument('--feddgn-hidden-dim', type=int, default=64)
+        parser.add_argument('--feddgn-steps', type=int, default=16)
+        parser.add_argument('--feddgn-step-size', type=float, default=0.1)
+        parser.add_argument('--feddgn-gamma', type=float, default=0.1)
+        parser.add_argument(
+            '--feddgn-activation', choices=['tanh', 'relu', 'gelu'], default='tanh'
+        )
+        parser.add_argument('--feddgn-input-dropout', type=float, default=0.0)
+        parser.add_argument('--feddgn-classifier-dropout', type=float, default=0.0)
+        parser.add_argument(
+            '--feddgn-head', choices=['mlp', 'linear'], default='linear'
+        )
+        parser.add_argument('--feddgn-lr', type=float, default=0.015)
+        parser.add_argument('--feddgn-label-smoothing', type=float, default=0.0)
+        parser.add_argument(
+            '--feddgn-max-grad-norm',
+            type=float,
+            default=0.0,
+            help='FedDGN gradient clipping threshold; 0 disables clipping.',
+        )
+        parser.add_argument(
+            '--feddgn-fed-optimizer',
+            choices=['persistent_adam', 'reset_adam', 'block_v'],
+            default='reset_adam',
+        )
+
         # Method 1.1 local Port-Hamiltonian Koopman-GNN. Defaults mirror
         # Method1LocalConfig "首轮配置" so a bare `--model v11` run reproduces
         # the settings recommended by the reference design document.
@@ -166,9 +194,10 @@ class Parser:
             '--local-only',
             action='store_true',
             help=(
-                'V0.4 only: ignore the broadcast model and optimizer state, '
-                'keeping one continuous persistent-Adam local trajectory. The '
-                'server still aggregates, so this is not a federated result.'
+                'V0.4/FedDGN local mode: ignore the broadcast model and '
+                'optimizer state, keeping one continuous persistent-Adam '
+                'local trajectory. The server still aggregates, so this is '
+                'not a federated result.'
             ),
         )
         parser.add_argument(

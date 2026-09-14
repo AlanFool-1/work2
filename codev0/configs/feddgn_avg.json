@@ -1,0 +1,38 @@
+{
+  "_defaults": {
+    "n_workers": 10,
+    "n_clients": 10,
+    "n_rnds": 100,
+    "n_eps": 1,
+    "frac": 1.0,
+    "aggregation": "equal",
+    "log_profile": "minimal",
+    "local_only": false,
+
+    "weight_decay": 0.0001,
+    "feddgn_hidden_dim": 64,
+    "feddgn_steps": 16,
+    "feddgn_step_size": 0.1,
+    "feddgn_gamma": 0.1,
+    "feddgn_activation": "tanh",
+    "feddgn_input_dropout": 0.0,
+    "feddgn_classifier_dropout": 0.0,
+    "feddgn_head": "linear",
+    "feddgn_lr": 0.015,
+    "feddgn_label_smoothing": 0.0,
+    "feddgn_max_grad_norm": 0.0,
+    "feddgn_fed_optimizer": "reset_adam"
+  },
+
+  "Cora": {},
+  "CiteSeer": {},
+  "PubMed": {},
+  "Computers": {},
+  "Photo": {},
+  "ogbn-arxiv": {},
+  "Roman-empire": {},
+  "Amazon-ratings": {},
+  "Minesweeper": {},
+  "Tolokers": {},
+  "Questions": {}
+}
