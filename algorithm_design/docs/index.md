@@ -22,10 +22,15 @@ hide:
 
 <div class="hero-actions">
 
-[进入 Method V0.2](methodv02.md){ .md-button .md-button--primary }
+[进入 Method V1.0](methodv10.md){ .md-button .md-button--primary }
+[查看 ResKoopNet 审计](references/reskoopnet.md){ .md-button }
+[回看 Method V0.4](methodv04.md){ .md-button }
+[进入 Method V0.5](methodv05.md){ .md-button }
+[查看 V0.3 实验分析](experiments/methodv03.md){ .md-button }
+[查看 KoopmanGraph 审计](references/koopmangraph.md){ .md-button }
+[回看 Method V0.2](methodv02.md){ .md-button }
 [回看 Method V0.1](methodv01.md){ .md-button }
 [回看 Method V0](methodv0.md){ .md-button }
-[查看实验分析](experiments/index.md){ .md-button }
 [浏览参考论文](references/index.md){ .md-button }
 
 </div>
@@ -33,9 +38,9 @@ hide:
 </div>
 
 <div class="metric-row">
-<div class="metric"><strong>03</strong><span>方法版本</span></div>
-<div class="metric"><strong>04</strong><span>核心参考论文</span></div>
-<div class="metric"><strong>01</strong><span>初始实验</span></div>
+<div class="metric"><strong>07</strong><span>方法版本</span></div>
+<div class="metric"><strong>09</strong><span>参考条目</span></div>
+<div class="metric"><strong>05</strong><span>实验页面</span></div>
 <div class="metric"><strong>01</strong><span>固定研究主线</span></div>
 </div>
 
@@ -47,12 +52,26 @@ hide:
 
 <p class="card-kicker">CURRENT METHOD</p>
 
-### [Method V0.2](methodv02.md)
+### [Method V1.0](methodv10.md)
 
-联合训练非线性参考轨迹与节点级 E–K–D，将解码器接入分类并检验多步演化。已进入 Cora 完整 100 轮联邦验证；实验页区分本地诊断、客户端验证选模和最终全局成绩，尚未证明表达能力提升。
+保留每个客户端的本地 FedDGN backbone，以 ResKoopNet 从传播轨迹学习本地 Koopman 算子；服务端通过 functional map 把独立 observable 空间中的 modes 对齐到公共比较空间，随后构建 mode graph、发现动力学社区并形成全局 mode bank。V1.0 只做跨客户端 mode discovery，**尚不反馈或修改本地训练。**
 
-[查看 V0.2 实现](methodv02.md){ .md-button .md-button--primary }
-[查看联邦与本地实验](experiments/methodv02.md){ .md-button }
+[查看 V1.0 算法设计](methodv10.md){ .md-button .md-button--primary }
+[查看 ResKoopNet 源码审计](references/reskoopnet.md){ .md-button }
+[回看 V0.4 实验分析](experiments/methodv04.md){ .md-button }
+
+</div>
+
+<div class="workspace-card" markdown>
+
+<p class="card-kicker">DESIGN PRINCIPLE</p>
+
+### [Method V0.5](methodv05.md)
+
+保留 V0.4 的 reference dynamics → Koopman generator 骨架，把低维动力学算子本身当作可交换的联邦知识载体：服务器不再构造唯一全局算子，而是在算子流形上为每个客户端形成**个性化、方向性**的知识流，并让外部驱动力在知识被吸收后自然衰减到异质性平衡。思想约束见「思想设计」，可编码的 server/client 流程见「实现步骤」。**尚未实现。**
+
+[查看 V0.5 思想设计](methodv05.md){ .md-button }
+[查看 V0.5 实现步骤](methodv05-implementation.md){ .md-button }
 
 </div>
 
@@ -74,7 +93,7 @@ hide:
 
 ### [参考论文](references/index.md)
 
-按“坐标学习 → 变分压缩 → 滚动纠偏 → 算子适配”组织四篇 Koopman 论文，逐篇记录方法和面向异质图联邦的启发。
+按“坐标学习 → 变分压缩 → 滚动纠偏 → 算子适配 → 图上连续算子 → 守恒与受控传播 → 谱残差”组织参考材料，逐项记录方法、源码证据和面向异质图联邦的可迁移边界。
 
 [打开论文库](references/index.md){ .md-button }
 
@@ -97,13 +116,13 @@ hide:
 ## 当前研究主线
 
 <div class="research-flow">
-<div class="flow-step"><span>01</span><strong>节点潜坐标</strong><small>输入与邻域 → 节点编码器</small></div>
+<div class="flow-step"><span>01</span><strong>本地动力学</strong><small>FedDGN → 传播轨迹</small></div>
 <div class="flow-arrow" aria-hidden="true">→</div>
-<div class="flow-step"><span>02</span><strong>线性图传播</strong><small>自身与邻域生成元 → 多步演化</small></div>
+<div class="flow-step"><span>02</span><strong>轨迹压缩</strong><small>ResKoopNet → $K_m,V_m$</small></div>
 <div class="flow-arrow" aria-hidden="true">→</div>
-<div class="flow-step"><span>03</span><strong>真实任务验证</strong><small>ACC/AUC 与收敛轮数</small></div>
+<div class="flow-step"><span>03</span><strong>功能对齐</strong><small>$C_mK_m\approx K_sC_m$</small></div>
 <div class="flow-arrow" aria-hidden="true">→</div>
-<div class="flow-step"><span>04</span><strong>动力学共享</strong><small>坐标对齐后再缩小通信对象</small></div>
+<div class="flow-step"><span>04</span><strong>模式发现</strong><small>mode graph → mode bank</small></div>
 </div>
 
 ## 一个可交互的线性动力学示例

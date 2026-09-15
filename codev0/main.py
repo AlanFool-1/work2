@@ -27,6 +27,7 @@ DATASET_META = {
 }
 
 MODEL_MODULES = {
+    'feddgn': 'models.feddgn',
     'feddgn_local': 'models.feddgn_local',
     'feddgn_avg': 'models.feddgn_avg',
     'v04': 'models.v04',
@@ -39,8 +40,9 @@ MODEL_MODULES = {
 
 V04_MODELS = {'v04'}
 V11_MODELS = {'v11'}
+FEDDGN_KOOPMAN_MODELS = {'feddgn'}
 FEDDGN_LOCAL_MODELS = {'feddgn_local'}
-FEDDGN_AVG_MODELS = {'feddgn_avg'}
+FEDDGN_AVG_MODELS = {'feddgn_avg'} | FEDDGN_KOOPMAN_MODELS
 FEDDGN_MODELS = FEDDGN_LOCAL_MODELS | FEDDGN_AVG_MODELS
 REFERENCE_MODELS = {'local', 'fedavg', 'fedpub', 'fedaux'}
 
@@ -116,12 +118,12 @@ def set_config(args):
             args.optimizer_state_mode = 'local_persistent_adam'
             if not args.local_only:
                 raise ValueError(
-                    'feddgn_local requires local_only=true.'
+                    f'{args.model} requires local_only=true.'
                 )
         else:
             if args.local_only:
                 raise ValueError(
-                    'feddgn_avg is the FedAvg variant; omit --local-only.'
+                    f'{args.model} is a FedAvg variant; omit --local-only.'
                 )
             optimizer_modes = {
                 'persistent_adam': 'fedavg_model_persistent_adam',
@@ -147,6 +149,50 @@ def set_config(args):
             raise ValueError('FedDGN classifier dropout must lie in [0, 1).')
         if not 0.0 <= args.feddgn_label_smoothing < 1.0:
             raise ValueError('FedDGN label smoothing must lie in [0, 1).')
+        if args.model in FEDDGN_KOOPMAN_MODELS:
+            koopman_dimensions = (
+                args.feddgn_koopman_hidden_dim,
+                args.feddgn_koopman_hidden_layers,
+                args.feddgn_koopman_max_snapshots,
+                args.feddgn_koopman_batch_size,
+                args.feddgn_koopman_save_every,
+                args.feddgn_koopman_visualization_top_modes,
+                args.feddgn_koopman_visualization_dpi,
+                args.feddgn_mode_graph_top_modes,
+                args.feddgn_mode_graph_neighbors,
+                args.feddgn_mode_graph_personalized_modes,
+                args.feddgn_mode_graph_save_every,
+            )
+            if min(koopman_dimensions) <= 0:
+                raise ValueError('FedDGN ResKoopNet dimensions must be positive.')
+            if args.feddgn_koopman_aux_dim < 0:
+                raise ValueError('FedDGN Koopman aux_dim must be non-negative.')
+            if min(
+                args.feddgn_koopman_outer_steps,
+                args.feddgn_koopman_inner_steps,
+            ) < 0:
+                raise ValueError('FedDGN Koopman optimization steps are invalid.')
+            if args.feddgn_koopman_ridge < 0:
+                raise ValueError('FedDGN Koopman ridge must be non-negative.')
+            if args.feddgn_koopman_lr <= 0:
+                raise ValueError('FedDGN Koopman learning rate must be positive.')
+            if min(
+                args.feddgn_koopman_weight_decay,
+                args.feddgn_koopman_grad_clip,
+            ) < 0:
+                raise ValueError('FedDGN Koopman regularizers must be non-negative.')
+            if args.feddgn_mode_graph_resolution <= 0.0:
+                raise ValueError(
+                    'FedDGN Louvain resolution must be positive.'
+                )
+            if args.feddgn_functional_map_steps < 0:
+                raise ValueError(
+                    'FedDGN Functional Map steps must be non-negative.'
+                )
+            if args.feddgn_functional_map_tolerance <= 0.0:
+                raise ValueError(
+                    'FedDGN Functional Map tolerance must be positive.'
+                )
     elif args.model in V11_MODELS:
         # Local-only backbone: the shared FedAdamW-v protocol does not apply.
         # Method1LocalConfig.validate() owns the remaining field checks.

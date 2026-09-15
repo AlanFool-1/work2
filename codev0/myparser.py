@@ -16,7 +16,7 @@ class Parser:
         parser.add_argument(
             '--model',
             choices=[
-                'v04', 'v11', 'feddgn_local', 'feddgn_avg',
+                'v04', 'v11', 'feddgn', 'feddgn_local', 'feddgn_avg',
                 'local', 'fedavg', 'fedpub', 'fedaux',
             ],
             default='v04',
@@ -123,6 +123,81 @@ class Parser:
             choices=['persistent_adam', 'reset_adam', 'block_v'],
             default='reset_adam',
         )
+        parser.add_argument('--feddgn-koopman-aux-dim', type=int, default=16)
+        parser.add_argument('--feddgn-koopman-hidden-dim', type=int, default=64)
+        parser.add_argument('--feddgn-koopman-hidden-layers', type=int, default=2)
+        parser.add_argument('--feddgn-koopman-ridge', type=float, default=1e-3)
+        parser.add_argument(
+            '--feddgn-koopman-max-snapshots', type=int, default=8192
+        )
+        parser.add_argument('--feddgn-koopman-outer-steps', type=int, default=1)
+        parser.add_argument('--feddgn-koopman-inner-steps', type=int, default=4)
+        parser.add_argument('--feddgn-koopman-batch-size', type=int, default=1024)
+        parser.add_argument('--feddgn-koopman-lr', type=float, default=1e-3)
+        parser.add_argument(
+            '--feddgn-koopman-weight-decay', type=float, default=1e-5
+        )
+        parser.add_argument('--feddgn-koopman-grad-clip', type=float, default=5.0)
+        parser.add_argument('--feddgn-koopman-save-every', type=int, default=10)
+        parser.add_argument(
+            '--feddgn-koopman-visualize',
+            action=argparse.BooleanOptionalAction,
+            default=True,
+        )
+        parser.add_argument(
+            '--feddgn-koopman-visualization-top-modes', type=int, default=16
+        )
+        parser.add_argument(
+            '--feddgn-koopman-visualization-dpi', type=int, default=160
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-enabled',
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                'Build a passive server mode graph and return client-specific '
+                'mode banks without task-dynamics feedback.'
+            ),
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-visualize',
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help='Render the server mode graph dashboard at finalization.',
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-top-modes', type=int, default=16
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-neighbors', type=int, default=5
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-resolution',
+            type=float,
+            default=1.0,
+            help='Louvain resolution on the spatial cross-client kNN graph.',
+        )
+        parser.add_argument(
+            '--feddgn-functional-map-steps',
+            type=int,
+            default=8,
+            help=(
+                'Projected-gradient refinement steps for each small Koopman '
+                'Functional Map; spectral-polar initialization is always used.'
+            ),
+        )
+        parser.add_argument(
+            '--feddgn-functional-map-tolerance',
+            type=float,
+            default=1e-7,
+            help='Convergence tolerance for server Functional Map alignment.',
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-personalized-modes', type=int, default=16
+        )
+        parser.add_argument(
+            '--feddgn-mode-graph-save-every', type=int, default=10
+        )
 
         # Method 1.1 local Port-Hamiltonian Koopman-GNN. Defaults mirror
         # Method1LocalConfig "首轮配置" so a bare `--model v11` run reproduces
@@ -215,7 +290,13 @@ class Parser:
         explicit = set()
         for token in sys.argv[1:]:
             if token.startswith('--'):
-                explicit.add(token[2:].split('=', 1)[0].replace('-', '_'))
+                name = token[2:].split('=', 1)[0].replace('-', '_')
+                explicit.add(name)
+                # argparse.BooleanOptionalAction spells the negative switch
+                # as --no-<name>, but configuration precedence is tracked by
+                # the positive destination name.
+                if name.startswith('no_'):
+                    explicit.add(name[3:])
         args, unparsed = self.parser.parse_known_args()
         args._explicit_args = sorted(explicit)
         if unparsed:

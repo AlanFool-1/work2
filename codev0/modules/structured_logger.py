@@ -77,6 +77,19 @@ class StructuredLogger:
         'intrinsic_rms', 'force_rms', 'force_intrinsic_ratio',
         'state_rms', 'feddgn_lr',
     ]
+    FEDDGN_KOOPMAN_FIELDS = [
+        'koopman_fit_residual', 'koopman_spectral_residual',
+        'koopman_spectral_radius', 'koopman_operator_fro',
+        'koopman_condition', 'koopman_effective_rank',
+        'koopman_aux_rms', 'koopman_snapshots',
+        'koopman_mode_residual_mean', 'koopman_mode_residual_max',
+        'koopman_dictionary_loss', 'koopman_seconds',
+        'koopman_dictionary_received',
+        'koopman_dictionary_optimizer_reset',
+        'koopman_dictionary_pre_receive_delta',
+        'koopman_dictionary_post_receive_delta',
+        'koopman_dictionary_source_round',
+    ]
     DIAGNOSTIC_FIELDS = (
         V04_FIELDS + V11_FIELDS + FEDDGN_FIELDS
     )
@@ -104,6 +117,13 @@ class StructuredLogger:
         self.args = args
         self.log_path = args.log_path
         self.profile = str(args.log_profile)
+        self.diagnostic_fields = list(self.DIAGNOSTIC_FIELDS)
+        self.metric_fields = list(self.METRIC_FIELDS)
+        self.client_fields = list(self.CLIENT_FIELDS)
+        if str(args.model) == 'feddgn':
+            self.diagnostic_fields.extend(self.FEDDGN_KOOPMAN_FIELDS)
+            self.metric_fields.extend(self.FEDDGN_KOOPMAN_FIELDS)
+            self.client_fields.extend(self.FEDDGN_KOOPMAN_FIELDS)
         self.round_started = None
         self.client_best = {
             client_id: {
@@ -243,7 +263,7 @@ class StructuredLogger:
                 'train_size': int(item['train_size']),
                 **{
                     name: float(item.get(name, 0.0))
-                    for name in self.DIAGNOSTIC_FIELDS
+                    for name in self.diagnostic_fields
                 },
             }
             for item in ordered
@@ -265,10 +285,10 @@ class StructuredLogger:
             'round_seconds': float(time.perf_counter() - self.round_started),
             **{
                 name: float(np.mean([row[name] for row in client_rows]))
-                for name in self.DIAGNOSTIC_FIELDS
+                for name in self.diagnostic_fields
             },
         }
-        self._append_csv('metrics.csv', [metric_row], self.METRIC_FIELDS)
+        self._append_csv('metrics.csv', [metric_row], self.metric_fields)
         self._write_csv(
             'client_best.csv',
             [self.client_best[index] for index in sorted(self.client_best)],
@@ -276,7 +296,7 @@ class StructuredLogger:
         )
         if self.profile == 'diagnostic':
             self._append_csv(
-                'client_metrics.csv', client_rows, self.CLIENT_FIELDS
+                'client_metrics.csv', client_rows, self.client_fields
             )
             self._record_diagnostics(
                 round_number, ordered, reference_state, aggregation
