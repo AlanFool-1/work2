@@ -7,7 +7,7 @@
     "frac": 1.0,
     "aggregation": "equal",
     "log_profile": "minimal",
-    "local_only": false,
+    "local_only": true,
 
     "weight_decay": 0.0001,
     "feddgn_hidden_dim": 64,
@@ -21,7 +21,6 @@
     "feddgn_lr": 0.015,
     "feddgn_label_smoothing": 0.0,
     "feddgn_max_grad_norm": 0.0,
-    "feddgn_fed_optimizer": "block_v",
 
     "feddgn_koopman_aux_dim": 16,
     "feddgn_koopman_hidden_dim": 64,
@@ -34,20 +33,7 @@
     "feddgn_koopman_lr": 0.001,
     "feddgn_koopman_weight_decay": 0.00001,
     "feddgn_koopman_grad_clip": 5.0,
-    "feddgn_koopman_save_every": 10,
-    "feddgn_koopman_visualize": true,
-    "feddgn_koopman_visualization_top_modes": 16,
-    "feddgn_koopman_visualization_dpi": 160,
-
-    "feddgn_mode_graph_enabled": true,
-    "feddgn_mode_graph_visualize": true,
-    "feddgn_mode_graph_top_modes": 16,
-    "feddgn_mode_graph_neighbors": 5,
-    "feddgn_mode_graph_resolution": 1.0,
-    "feddgn_functional_map_steps": 8,
-    "feddgn_functional_map_tolerance": 1e-7,
-    "feddgn_mode_graph_personalized_modes": 16,
-    "feddgn_mode_graph_save_every": 10
+    "feddgn_koopman_save_every": 10
   },
 
   "Cora": {},

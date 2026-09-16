@@ -31,7 +31,6 @@ MODEL_MODULES = {
     'feddgn_local': 'models.feddgn_local',
     'feddgn_avg': 'models.feddgn_avg',
     'v04': 'models.v04',
-    'v11': 'models.v11',
     'local': 'models.local',
     'fedavg': 'models.fedavg',
     'fedpub': 'models.fedpub',
@@ -39,10 +38,9 @@ MODEL_MODULES = {
 }
 
 V04_MODELS = {'v04'}
-V11_MODELS = {'v11'}
 FEDDGN_KOOPMAN_MODELS = {'feddgn'}
-FEDDGN_LOCAL_MODELS = {'feddgn_local'}
-FEDDGN_AVG_MODELS = {'feddgn_avg'} | FEDDGN_KOOPMAN_MODELS
+FEDDGN_LOCAL_MODELS = {'feddgn_local'} | FEDDGN_KOOPMAN_MODELS
+FEDDGN_AVG_MODELS = {'feddgn_avg'}
 FEDDGN_MODELS = FEDDGN_LOCAL_MODELS | FEDDGN_AVG_MODELS
 REFERENCE_MODELS = {'local', 'fedavg', 'fedpub', 'fedaux'}
 
@@ -156,12 +154,6 @@ def set_config(args):
                 args.feddgn_koopman_max_snapshots,
                 args.feddgn_koopman_batch_size,
                 args.feddgn_koopman_save_every,
-                args.feddgn_koopman_visualization_top_modes,
-                args.feddgn_koopman_visualization_dpi,
-                args.feddgn_mode_graph_top_modes,
-                args.feddgn_mode_graph_neighbors,
-                args.feddgn_mode_graph_personalized_modes,
-                args.feddgn_mode_graph_save_every,
             )
             if min(koopman_dimensions) <= 0:
                 raise ValueError('FedDGN ResKoopNet dimensions must be positive.')
@@ -181,25 +173,6 @@ def set_config(args):
                 args.feddgn_koopman_grad_clip,
             ) < 0:
                 raise ValueError('FedDGN Koopman regularizers must be non-negative.')
-            if args.feddgn_mode_graph_resolution <= 0.0:
-                raise ValueError(
-                    'FedDGN Louvain resolution must be positive.'
-                )
-            if args.feddgn_functional_map_steps < 0:
-                raise ValueError(
-                    'FedDGN Functional Map steps must be non-negative.'
-                )
-            if args.feddgn_functional_map_tolerance <= 0.0:
-                raise ValueError(
-                    'FedDGN Functional Map tolerance must be positive.'
-                )
-    elif args.model in V11_MODELS:
-        # Local-only backbone: the shared FedAdamW-v protocol does not apply.
-        # Method1LocalConfig.validate() owns the remaining field checks.
-        args.local_optimizer = 'adamw'
-        args.optimizer_state_mode = 'local_only'
-        if args.v11_operator_rank > args.v11_hidden_dim + args.v11_aux_dim:
-            raise ValueError('operator_rank cannot exceed the observable width.')
     elif args.model in V04_MODELS:
         # O4 block-v is the default V0.4 optimizer protocol; the plain variants
         # exist only to locate how much of it the federated path needs.
@@ -238,10 +211,9 @@ def set_config(args):
             raise ValueError('lie_warmup_rounds must be non-negative.')
         if args.lie_ramp_end_round <= args.lie_warmup_rounds:
             raise ValueError('Lie ramp must end after warmup.')
-        if args.lie_weight_max < 0 or args.lie_speed_weight != 0:
+        if args.lie_weight_max < 0:
             raise ValueError(
-                'V0.4 Gate 0-4 require non-negative Lie direction weight '
-                'and lie_speed_weight=0.'
+                'V0.4 Gate 0-4 require a non-negative Lie direction weight.'
             )
         if min(
             args.integration_time,

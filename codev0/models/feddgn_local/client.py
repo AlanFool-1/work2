@@ -53,8 +53,6 @@ class Client(ClientModule):
         for batch in self.loader.pa_loader:
             self._active_batch = batch.cuda(self.gpu_id)
             break
-        if self._active_batch is None:
-            raise RuntimeError('FedDGN requires one non-empty client graph.')
 
     def init_state(self):
         set_state_dict(self.model, self._initial_model, self.gpu_id)
@@ -110,8 +108,6 @@ class Client(ClientModule):
         self.transfer_to_server()
 
     def _batch(self):
-        if self._active_batch is None:
-            raise RuntimeError('Client graph has not been loaded.')
         return self._active_batch
 
     @torch.no_grad()

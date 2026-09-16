@@ -27,14 +27,6 @@ class ResKoopDictionary(nn.Module):
         hidden_layers: int = 2,
     ) -> None:
         super().__init__()
-        if state_dim <= 0 or aux_dim < 0:
-            raise ValueError(
-                'ResKoop state_dim must be positive and aux_dim non-negative.'
-            )
-        if aux_dim > 0 and min(hidden_dim, hidden_layers) <= 0:
-            raise ValueError(
-                'Learned ResKoop dictionaries require positive hidden sizes.'
-            )
         self.state_dim = int(state_dim)
         self.aux_dim = int(aux_dim)
         self.observable_dim = 1 + self.state_dim + self.aux_dim
@@ -57,11 +49,6 @@ class ResKoopDictionary(nn.Module):
         return self.network(state)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        if state.ndim != 2 or state.size(-1) != self.state_dim:
-            raise ValueError(
-                'ResKoop dictionary expects [samples, state_dim], got '
-                f'{tuple(state.shape)}.'
-            )
         constant = torch.ones_like(state[:, :1])
         return torch.cat(
             [constant, state, self.learned_features(state)], dim=-1
@@ -81,10 +68,6 @@ class PassiveResKoopNet(nn.Module):
         max_snapshots: int = 8192,
     ) -> None:
         super().__init__()
-        if ridge < 0.0:
-            raise ValueError('ResKoop ridge must be non-negative.')
-        if max_snapshots <= 0:
-            raise ValueError('ResKoop max_snapshots must be positive.')
         self.dictionary = ResKoopDictionary(
             state_dim=state_dim,
             aux_dim=aux_dim,
@@ -107,15 +90,6 @@ class PassiveResKoopNet(nn.Module):
 
         if isinstance(trajectory, (tuple, list)):
             trajectory = torch.stack(tuple(trajectory), dim=0)
-        if not torch.is_tensor(trajectory) or trajectory.ndim != 3:
-            raise ValueError(
-                'FedDGN trajectory must have shape '
-                '[steps + 1, nodes, hidden_dim].'
-            )
-        if trajectory.size(0) < 2 or trajectory.size(-1) != self.state_dim:
-            raise ValueError(
-                'FedDGN trajectory has incompatible time/state dimensions.'
-            )
 
         current = trajectory[:-1].reshape(-1, self.state_dim)
         following = trajectory[1:].reshape(-1, self.state_dim)
@@ -133,8 +107,6 @@ class PassiveResKoopNet(nn.Module):
         return current.detach(), following.detach()
 
     def _operator(self, psi_x: torch.Tensor, psi_y: torch.Tensor):
-        if psi_x.shape != psi_y.shape or psi_x.ndim != 2:
-            raise ValueError('Psi_X and Psi_Y must be matching matrices.')
         gram = psi_x.transpose(0, 1) @ psi_x
         cross = psi_x.transpose(0, 1) @ psi_y
         identity = torch.eye(
@@ -274,10 +246,6 @@ class PassiveResKoopNet(nn.Module):
     ) -> Dict[str, object]:
         """Fit the dictionary and return a detached Koopman analysis bundle."""
 
-        if min(outer_steps, inner_steps) < 0:
-            raise ValueError('ResKoop outer/inner steps must be non-negative.')
-        if batch_size <= 0 or grad_clip < 0.0:
-            raise ValueError('Invalid ResKoop optimization settings.')
         current, following = self.snapshot_pairs(trajectory)
         self.train()
 

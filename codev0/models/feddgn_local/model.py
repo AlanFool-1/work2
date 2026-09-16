@@ -46,13 +46,6 @@ class FedDGNBackbone(nn.Module):
         head: str = 'linear',
     ) -> None:
         super().__init__()
-        if input_dim <= 0 or output_dim <= 0 or hidden_dim <= 0:
-            raise ValueError('input/output/hidden dimensions must be positive.')
-        if not 0.0 <= float(input_dropout) < 1.0:
-            raise ValueError('input_dropout must lie in [0, 1).')
-        if not 0.0 <= float(classifier_dropout) < 1.0:
-            raise ValueError('classifier_dropout must lie in [0, 1).')
-
         self.hidden_dim = int(hidden_dim)
         self.encoder = nn.Linear(input_dim, hidden_dim)
         self.input_dropout = nn.Dropout(float(input_dropout))
@@ -64,13 +57,7 @@ class FedDGNBackbone(nn.Module):
             activation=activation,
         )
 
-        head = str(head).lower()
-        if head == 'linear':
-            self.classifier = nn.Sequential(
-                nn.Dropout(float(classifier_dropout)),
-                nn.Linear(hidden_dim, output_dim),
-            )
-        elif head == 'mlp':
+        if str(head).lower() == 'mlp':
             self.classifier = nn.Sequential(
                 nn.LayerNorm(hidden_dim),
                 nn.Linear(hidden_dim, hidden_dim),
@@ -79,7 +66,10 @@ class FedDGNBackbone(nn.Module):
                 nn.Linear(hidden_dim, output_dim),
             )
         else:
-            raise ValueError('head must be linear or mlp.')
+            self.classifier = nn.Sequential(
+                nn.Dropout(float(classifier_dropout)),
+                nn.Linear(hidden_dim, output_dim),
+            )
 
     def encode(self, data) -> torch.Tensor:
         x = data.x.float()

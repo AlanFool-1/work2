@@ -10,8 +10,6 @@ BINARY_DATASETS = {'Minesweeper', 'Tolokers', 'Questions'}
 
 
 def task_loss(logits, labels, mask, dataset, label_smoothing=0.0):
-    if int(mask.sum().item()) == 0:
-        raise ValueError('FedDGN requires a non-empty supervised mask.')
     if dataset in BINARY_DATASETS:
         return F.binary_cross_entropy_with_logits(
             logits[mask].reshape(-1),
@@ -35,15 +33,11 @@ def task_accuracy(logits, labels, mask, dataset):
 
 
 def train_feddgn_step(model, batch, optimizer, args):
-    """One task-only update; the reserved external-force port is kept at zero."""
+    """One local A-DGN task update, without federated external forcing."""
 
     model.train()
     optimizer.zero_grad(set_to_none=True)
-    output = model.forward_with_aux(
-        batch,
-        external_force=None,
-        force_scale=0.0,
-    )
+    output = model.forward_with_aux(batch)
     loss = task_loss(
         output.logits,
         batch.y,

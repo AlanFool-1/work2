@@ -81,11 +81,6 @@ class AntiSymmetricGraphField(nn.Module):
         graph_bias: bool = False,
     ) -> None:
         super().__init__()
-        if hidden_dim <= 0:
-            raise ValueError('hidden_dim must be positive.')
-        if gamma < 0:
-            raise ValueError('gamma must be non-negative.')
-
         self.hidden_dim = int(hidden_dim)
         self.gamma = float(gamma)
         self.raw_weight = nn.Parameter(torch.empty(hidden_dim, hidden_dim))
@@ -100,14 +95,12 @@ class AntiSymmetricGraphField(nn.Module):
         self.bias = nn.Parameter(torch.zeros(hidden_dim))
 
         activation = str(activation).lower()
-        if activation == 'tanh':
-            self.activation = torch.tanh
-        elif activation == 'relu':
+        if activation == 'relu':
             self.activation = torch.relu
         elif activation == 'gelu':
             self.activation = torch.nn.functional.gelu
         else:
-            raise ValueError('activation must be tanh, relu, or gelu.')
+            self.activation = torch.tanh
 
         self.reset_parameters()
 
@@ -169,10 +162,6 @@ class ForcedAntiSymmetricFlow(nn.Module):
         activation: str = 'tanh',
     ) -> None:
         super().__init__()
-        if int(num_steps) <= 0:
-            raise ValueError('num_steps must be positive.')
-        if float(step_size) <= 0:
-            raise ValueError('step_size must be positive.')
         self.hidden_dim = int(hidden_dim)
         self.num_steps = int(num_steps)
         self.step_size = float(step_size)
@@ -213,14 +202,7 @@ class ForcedAntiSymmetricFlow(nn.Module):
         force = force.to(device=state.device, dtype=state.dtype)
         if force.ndim == 1:
             force = force.unsqueeze(0)
-        try:
-            force = torch.broadcast_to(force, state.shape)
-        except RuntimeError as exc:
-            raise ValueError(
-                'external force must be broadcastable to the hidden-state shape '
-                f'{tuple(state.shape)}, got {tuple(force.shape)}.'
-            ) from exc
-        return force
+        return torch.broadcast_to(force, state.shape)
 
     def vector_field(
         self,

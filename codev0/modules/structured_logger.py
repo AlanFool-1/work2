@@ -28,7 +28,7 @@ class StructuredLogger:
     """Write compact default logs and opt-in parameter diagnostics.
 
     ``minimal`` is the normal training profile. It never flattens model
-    parameters and produces only four files in the run directory:
+    parameters. FedDGN additionally writes one compact per-round timing CSV.
 
     - config.json: resolved run configuration;
     - metrics.csv: one aggregate row per federated round;
@@ -74,8 +74,7 @@ class StructuredLogger:
         'band3_J_fro', 'band3_R_fro', 'band3_sym_max_eig', 'band3_spectral_norm',
     ]
     FEDDGN_FIELDS = [
-        'intrinsic_rms', 'force_rms', 'force_intrinsic_ratio',
-        'state_rms', 'feddgn_lr',
+        'intrinsic_rms', 'state_rms', 'feddgn_lr',
     ]
     FEDDGN_KOOPMAN_FIELDS = [
         'koopman_fit_residual', 'koopman_spectral_residual',
@@ -89,6 +88,21 @@ class StructuredLogger:
         'koopman_dictionary_pre_receive_delta',
         'koopman_dictionary_post_receive_delta',
         'koopman_dictionary_source_round',
+        'task_seconds', 'reskoop_seconds',
+        'dictionary_receive_seconds', 'client_total_seconds',
+    ]
+    FEDDGN_TIMING_FIELDS = [
+        'round', 'round_wall_seconds', 'client_parallel_wall_seconds',
+        'task_mean_seconds', 'task_max_seconds',
+        'reskoop_mean_seconds', 'reskoop_max_seconds',
+        'dictionary_receive_mean_seconds', 'dictionary_receive_max_seconds',
+        'client_total_mean_seconds', 'client_total_max_seconds',
+        'client_other_mean_seconds', 'client_other_max_seconds',
+        'server_message_unpack_seconds',
+        'server_dictionary_fedavg_seconds',
+        'server_modes_return_seconds',
+        'server_metric_logging_seconds', 'server_checkpoint_seconds',
+        'server_update_seconds',
     ]
     DIAGNOSTIC_FIELDS = (
         V04_FIELDS + V11_FIELDS + FEDDGN_FIELDS
@@ -298,9 +312,71 @@ class StructuredLogger:
             self._append_csv(
                 'client_metrics.csv', client_rows, self.client_fields
             )
-            self._record_diagnostics(
-                round_number, ordered, reference_state, aggregation
+            if reference_state is not None:
+                self._record_diagnostics(
+                    round_number, ordered, reference_state, aggregation
+                )
+
+    def record_feddgn_timing(
+        self, round_id, messages, server_timings, *, round_wall_seconds
+    ):
+        """One additive wall-time row and parallel-client stage summaries.
+
+        Client means/maxima are durations on independently running workers;
+        they must not be summed to obtain the server's round wall time.
+        """
+        ordered = sorted(messages, key=lambda item: int(item['client_id']))
+        if not ordered or self.round_started is None:
+            raise RuntimeError('FedDGN timing needs a completed client round.')
+
+        def summarize(name):
+            values = np.asarray(
+                [float(item[name]) for item in ordered], dtype=np.float64
             )
+            if not np.isfinite(values).all() or np.any(values < 0.0):
+                raise ValueError(f'Invalid FedDGN timing field: {name}.')
+            return float(values.mean()), float(values.max())
+
+        row = {
+            'round': int(round_id) + 1,
+            'round_wall_seconds': float(round_wall_seconds),
+            **{name: float(server_timings[name]) for name in (
+                'client_parallel_wall_seconds',
+                'server_message_unpack_seconds',
+                'server_dictionary_fedavg_seconds',
+                'server_modes_return_seconds',
+                'server_metric_logging_seconds',
+                'server_checkpoint_seconds',
+                'server_update_seconds',
+            )},
+        }
+        for field, prefix in (
+            ('task_seconds', 'task'),
+            ('reskoop_seconds', 'reskoop'),
+            ('dictionary_receive_seconds', 'dictionary_receive'),
+            ('client_total_seconds', 'client_total'),
+        ):
+            mean, maximum = summarize(field)
+            row[f'{prefix}_mean_seconds'] = mean
+            row[f'{prefix}_max_seconds'] = maximum
+        other = np.asarray([
+            float(item['client_total_seconds'])
+            - sum(float(item[name]) for name in (
+                'task_seconds', 'reskoop_seconds',
+                'dictionary_receive_seconds',
+            ))
+            for item in ordered
+        ], dtype=np.float64)
+        if np.any(other < -1e-6):
+            raise ValueError('FedDGN client stage timing exceeds total timing.')
+        row['client_other_mean_seconds'] = float(np.maximum(other, 0).mean())
+        row['client_other_max_seconds'] = float(np.maximum(other, 0).max())
+        if not all(np.isfinite(float(value)) and float(value) >= 0.0
+                   for value in row.values()):
+            raise ValueError('FedDGN timing row contains invalid durations.')
+        self._append_csv(
+            'timing.csv', [row], self.FEDDGN_TIMING_FIELDS
+        )
 
     def finalize(self):
         completed = [

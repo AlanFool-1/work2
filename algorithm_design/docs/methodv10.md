@@ -1,274 +1,158 @@
 ---
-title: FedDGN Method V1.0：共享观测字典与功能映射模式图
+title: FedDGN Method V1.0：冲突感知的联邦 Koopman 模式迁移
 description: >-
-  详细说明 FedDGN V1.0 的 A-DGN 任务主干、O4 聚合、ResKoopNet
-  观测字典联邦平均、本地 Koopman 算子、Functional Map 对齐、模式图与个性化模式返回。
+  介绍 FedDGN V1.0 的本地 A-DGN 动力学、共享 ResKoop 观测字典、
+  Functional Map 坐标对齐、服务端动力学冲突筛选，以及客户端被动 K* 合成与日志系统。
 tags:
   - 图联邦学习
   - 图动力学
-  - ResKoopNet
+  - Koopman
   - Functional Map
-  - Koopman 模式图
+  - 动力学冲突筛选
   - Method V1.0
 ---
 
-# FedDGN Method V1.0：共享观测字典与功能映射模式图
+# FedDGN Method V1.0：冲突感知的联邦 Koopman 模式迁移
 
-## 1. 页面定位
+## 1. 问题定义
 
-FedDGN V1.0 研究的是一个比“直接平均所有动力学对象”更谨慎的问题：在客户端图结构、特征分布和标签分布均不一致时，如何先把各客户端学到的动力学放到可比较的坐标系中，再发现可迁移的传播模式。
-
-当前版本已经形成两条彼此隔离的联邦链路：
-
-1. **任务链路**：A-DGN 网络参数执行 FedAvg，并使用 O4 `block_v` 聚合 AdamW 的分块二阶矩标量；
-2. **动力学分析链路**：ResKoopNet 的可学习观测字典参数执行独立的 FedAvg；每个客户端的 Koopman 算子 $K_m$ 仍由本地轨迹解析计算；服务端用 Functional Map 对齐不同 $K$ 空间，再构建跨客户端模式图。
-
-两条链路的当前边界非常重要：
-
-!!! warning "V1.0 仍是被动分析版本"
-    服务端返回的 Functional Map、全局模式库和个性化相关模式**尚未进入 A-DGN 的前向传播、损失函数或外力端口**。因此当前实现可以验证“模式是否可比较、社区是否有结构”，但不能把任务 ACC 的变化归因于模式图反馈。
-
-当前代码对应关系如下：
-
-| 功能 | 实现位置 | 当前状态 |
-|---|---|---|
-| A-DGN 主干与轨迹输出 | `codev0/models/feddgn_local/` | 已实现 |
-| 任务参数 FedAvg 与 O4 `block_v` | `codev0/models/feddgn_avg/`、`codev0/modules/fed_optimizer.py` | 已实现 |
-| ResKoopNet 与解析 EDMD | `codev0/models/feddgn/reskoop.py` | 已实现 |
-| 观测字典参数 FedAvg | `codev0/models/feddgn/client.py`、`server.py` | 已实现 |
-| Functional Map 对齐 | `codev0/models/feddgn/functional_map.py` | 已实现 |
-| 模式图、Louvain 与模式库 | `codev0/models/feddgn/mode_graph.py` | 已实现 |
-| 服务端模式反馈进入任务动力学 | 尚无 | 未实现 |
-
-## 2. 核心问题：先区分两类异质性
-
-设共有 $M$ 个客户端。客户端 $m$ 持有图
+考虑由 $M$ 个客户端构成的联邦图学习系统。客户端 $m$ 持有私有图
 
 $$
 \mathcal G_m=(X_m,A_m,Y_m),
 $$
 
-并学习图状态 $H_m(t)$ 的非线性演化：
+并学习节点隐状态的离散动力学。不同客户端在拓扑、特征和标签分布上的差异，会同时引起两类异质性：
+
+1. **任务动力学异质性**：各客户端适合的状态演化规律并不完全相同；
+2. **观测坐标异质性**：即使存在相近的传播机制，其 Koopman 表示仍可能具有不同的排列、相位和基坐标。
+
+FedDGN V1.0 的目标不是构造一个统一的全局 Koopman 算子，而是在不共享原始图、节点轨迹和标签的条件下，识别对目标客户端**可靠、非冲突且具有本地需求**的外部动力学模式。
+
+整体知识流为
 
 $$
-\frac{dH_m(t)}{dt}=F_{\theta_m}(H_m(t),A_m).
+\boxed{
+K_m
+\longrightarrow
+\text{共享坐标对齐}
+\longrightarrow
+\text{可靠模式提取}
+\longrightarrow
+\text{目标条件冲突筛选}
+\longrightarrow
+\text{本地需求估计}
+\longrightarrow K_m^\star.
+}
 $$
 
-客户端差异至少包含两层含义。
+其中 $K_m^\star$ 是客户端侧的个性化分析算子。当前协议将它保存为动力学诊断产物，不用于 A-DGN 的前向传播、任务损失、梯度更新或下一轮轨迹生成。任务反馈机制不属于本版本的算法定义。
 
-### 2.1 任务动力学异质性
+## 2. 方法概览
 
-不同的 $A_m$、$X_m$ 和训练样本会产生不同的局部梯度以及不同的有效向量场：
-
-$$
-F_{\theta_1}\neq F_{\theta_2}\neq\cdots\neq F_{\theta_M}.
-$$
-
-任务网络需要联邦协同，但普通 FedAvg 在非独立同分布场景中容易受到局部 Adam 状态不一致的影响。因此 V1.0 对任务参数使用 FedAvg，对优化器二阶矩使用 O4 分块标量协议。
-
-### 2.2 Koopman 坐标异质性
-
-即使两个客户端存在相似的传播机制，其可学习字典也可能给这个机制分配不同的坐标、排列、相位和尺度。于是两个局部算子 $K_m$ 的特征向量不能仅凭数组位置直接比较。
-
-V1.0 用两层措施处理这个问题：
-
-1. 对 ResKoopNet 的可学习字典参数做 FedAvg，为所有客户端提供共同的观测坐标起点；
-2. 对本地更新后仍然存在的坐标偏差，用 Functional Map 显式对齐。
-
-这两步并不重复。字典 FedAvg 减少坐标漂移，Functional Map 则处理本地适配、数据异质性和神经网络参数对称性造成的剩余偏差。
-
-## 3. 记号
-
-| 记号 | 含义 |
-|---|---|
-| $m$ | 客户端编号，$m\in\{1,\ldots,M\}$ |
-| $r$ | 联邦通信轮次 |
-| $\theta_m^r$ | 客户端 $m$ 在第 $r$ 轮的 A-DGN 任务参数 |
-| $\omega_m^r$ | 客户端 $m$ 的 ResKoopNet 可学习字典参数 |
-| $H_m^{(\ell)}$ | A-DGN 第 $\ell$ 个离散传播步的隐藏状态 |
-| $\Psi_{\omega_m}$ | 客户端 $m$ 的 Koopman 观测字典 |
-| $d_z$ | Koopman 观测维数，默认 $1+64+16=81$ |
-| $K_m^r$ | 从客户端本轮本地轨迹解析得到的 Koopman 算子 |
-| $C_m^r$ | 从客户端 $m$ 的 $K$ 空间到参考 $K$ 空间的 Functional Map |
-| $v_{m,i}$、$\lambda_{m,i}$ | 第 $i$ 个 Koopman 特征向量与特征值 |
-| $p_m$ | 聚合权重；默认等权，也可按训练样本数加权 |
-
-## 4. 总体数据流
-
-一轮训练可概括为：
+一轮通信包含四个阶段：
 
 ```text
-服务器广播
-  ├─ 全局 A-DGN 参数 + O4 分块二阶矩
-  ├─ 上一轮全局 ResKoop 字典参数
-  └─ 上一轮 Functional Map / 模式图个性化视图
-              │
-              ▼
-客户端本地执行
-  ├─ 安装全局 A-DGN 参数，按 O4 初始化任务优化器
-  ├─ 安装全局观测字典，重置 Koopman Adam
-  ├─ 训练 A-DGN 任务网络
-  ├─ 重新生成无外力、detach 的本地轨迹
-  ├─ 微调观测字典并解析计算本地 K_m
-  └─ 上传任务参数、block-v、字典参数、K_m 与候选模式
-              │
-              ▼
-服务器聚合与分析
-  ├─ FedAvg 聚合 A-DGN 参数
-  ├─ O4 聚合任务网络的分块二阶矩标量
-  ├─ FedAvg 聚合 ResKoop 字典参数
-  ├─ 保留每个 K_m，不对 K 做平均
-  ├─ Functional Map 对齐 K 空间
-  ├─ 构建跨客户端模式图并运行 Louvain
-  └─ 返回全局模式库与客户端个性化模式视图
+客户端本地任务学习
+  └─ 持久化 A-DGN + 本地 Adam
+             │
+             ▼
+客户端动力学辨识
+  └─ detached 隐状态轨迹 → ResKoop 字典 → 本地 K_m
+             │
+             ▼
+服务端模式迁移
+  └─ 字典 FedAvg + Functional Map + 动力学冲突筛选
+             │
+             ▼
+客户端被动分析
+  └─ 私有残差需求 → 闭式 K_m* → 保存与诊断
 ```
 
-## 5. 任务主干：16 步 A-DGN
+协议边界如下：
 
-### 5.1 编码、动力学和分类
+| 对象 | 联邦操作 | 当前用途 |
+|---|---|---|
+| A-DGN 参数与任务 Adam | 不通信 | 每个客户端独立训练和推理 |
+| ResKoop 可学习字典参数 | FedAvg | 提供较一致的观测坐标起点 |
+| 本地 Koopman 算子 $K_m$ | 上传但不平均 | 服务端对齐、提取和筛选模式 |
+| 私有观测快照 $Z_m,Z_m^+$ | 不上传 | 客户端计算动力学需求与 $K_m^\star$ |
+| 个性化候选包 $\mathcal P_m$ | 服务端返回 | 客户端被动合成 $K_m^\star$ |
+| $K_m^\star$ | 仅客户端保存 | 数值诊断，不参与任务训练 |
 
-客户端首先把输入特征编码到 $d_h=64$ 维隐藏空间：
+服务端不构建 mode graph，不执行 Louvain 或其他社区发现，也不产生全局模式库。服务端的核心操作是对每个目标客户端进行**动力学模式冲突筛选**。
+
+## 3. 本地任务动力学
+
+### 3.1 A-DGN 主干
+
+客户端首先将节点特征编码为 $d_h$ 维隐状态：
 
 $$
 H_m^{(0)}=\operatorname{Linear}(X_m).
 $$
 
-随后使用共享权重的反对称图动力学进行 16 次显式 Euler 更新：
+随后使用共享权重的反对称图动力学进行 $L$ 次显式 Euler 更新：
 
 $$
 H_m^{(\ell+1)}
-=H_m^{(\ell)}+\epsilon F_{\theta_m}(H_m^{(\ell)},A_m),
-\qquad \ell=0,\ldots,15,
+=H_m^{(\ell)}+\epsilon F_{\theta_m}
+\left(H_m^{(\ell)},A_m\right),
 $$
 
-其中默认步长 $\epsilon=0.1$，向量场为
-
 $$
-F_{\theta}(H,A)
+F_{\theta_m}(H,A)
 =\sigma\!\left[
-\left(W-W^\top-\gamma I\right)H
-+\Phi_{\mathrm{GCN}}(H,A)+b
+(W_m-W_m^\top-\gamma I)H
++\Phi_{\mathrm{GCN},m}(H,A)+b_m
 \right].
 $$
 
-默认 $\gamma=0.1$、$\sigma=\tanh$。$W-W^\top$ 提供反对称自作用，$-\gamma I$ 是显式阻尼，$\Phi_{\mathrm{GCN}}$ 负责邻域耦合。16 个传播步共享同一组动力学参数，因此它不是 16 层互不共享参数的普通 GCN。
+默认配置为 $d_h=64$、$L=16$、$\epsilon=0.1$、$\gamma=0.1$ 和 $\sigma=\tanh$。所有传播步共享同一组动力学参数，最终分类头作用于 $H_m^{(L)}$。
 
-最后由线性分类头给出节点预测：
+### 3.2 本地个性化边界
 
-$$
-\widehat Y_m=\operatorname{Linear}(H_m^{(16)}).
-$$
-
-### 5.2 外力端口保持关闭
-
-代码保留了
+每个客户端独立维护 encoder、A-DGN field、classifier 和持久化 Adam 状态。任务模型参数及其优化器状态均不上传，服务端也不广播任务模型。因此，任务目标为
 
 $$
-\dot H=F_{\mathrm{intrinsic}}(H,A)
-+\beta F_{\mathrm{external}}(H,A)
+\min_{\theta_m}
+\mathcal L_{\mathrm{task},m}(\theta_m;\mathcal G_m),
 $$
 
-的接口，但当前训练和 Koopman 轨迹提取均明确使用
+而不是一个共享参数上的全局经验风险。联邦协作发生在 Koopman 观测与模式迁移层，不改变本地任务优化器的生命周期。
 
-```text
-external_force = None
-force_scale = 0.0
-```
+## 4. ResKoop 动力学辨识
 
-因此当前模型只有内禀 A-DGN 动力学，不存在外力模块，也不存在模式库向本地动力学注入的隐式路径。
+### 4.1 私有轨迹与快照
 
-## 6. 任务网络的 FedAvg 与 O4 `block_v`
-
-### 6.1 参数聚合
-
-每轮客户端完成任务训练后上传 $\theta_m^r$。服务端使用
+任务更新后，客户端重新生成
 
 $$
-\theta_g^r=\sum_{m\in\mathcal S_r}p_m\theta_m^r,
-\qquad \sum_m p_m=1.
+\mathcal T_m=
+\left(H_m^{(0)},H_m^{(1)},\ldots,H_m^{(L)}\right).
 $$
 
-默认配置 `aggregation=equal`，故 $p_m=1/|\mathcal S_r|$；若切换为样本量加权，则 $p_m$ 与本地训练样本数成正比。
-
-### 6.2 O4 聚合的对象
-
-任务网络默认使用 `feddgn_fed_optimizer=block_v`。设 AdamW 对参数张量 $q$ 的逐元素二阶矩为 $V_{m,q}$，客户端只上传一个标量：
+该轨迹在 `no_grad` 环境中产生，并在构造快照时显式 `detach`。相邻时间步和节点维被展平为
 
 $$
-s_{m,q}=\operatorname{mean}(V_{m,q}).
-$$
-
-服务端按与模型参数相同的权重聚合：
-
-$$
-s_{g,q}=\sum_m p_m s_{m,q}.
-$$
-
-下一轮客户端为整个参数块 $q$ 初始化
-
-$$
-V_{m,q}\leftarrow s_{g,q}\mathbf 1.
-$$
-
-同时，一阶矩 $M_{m,q}$ 从零开始，局部一阶矩步数也重新从 0 计数；二阶矩的偏置修正步数则继承服务端累计的 `global_v_step`。因此 O4 不是“聚合完整 Adam”，而是：
-
-- 聚合每个任务参数张量的一个二阶矩均值；
-- 不上传逐元素二阶矩；
-- 不聚合一阶矩；
-- 不把 Koopman Adam 混入 O4。
-
-默认 A-DGN 共有 7 个任务参数块，所以每个客户端每轮只为 O4 额外上传 7 个标量。
-
-## 7. ResKoopNet：共享字典起点，本地解析算子
-
-### 7.1 单向依赖与轨迹样本
-
-任务更新结束后，客户端用更新后的 A-DGN 再运行一次 16 步、无外力轨迹：
-
-$$
-\mathcal T_m^r=
-\left(H_m^{(0)},H_m^{(1)},\ldots,H_m^{(16)}\right).
-$$
-
-该轨迹在 `torch.no_grad()` 下产生，并在构造快照时再次 `detach`。所以依赖关系只有
-
-$$
-\theta_m^r\longrightarrow \mathcal T_m^r
-\longrightarrow (\omega_m^r,K_m^r),
-$$
-
-不存在 Koopman 损失反向更新 A-DGN 的路径。
-
-相邻时间步和节点维被展平成样本对：
-
-$$
-\mathcal D_m^r=
+\mathcal D_m=
 \left\{
 (h_{m,n}^{(\ell)},h_{m,n}^{(\ell+1)})
 \right\}_{\ell,n}.
 $$
 
-样本过多时，代码以确定性的等间隔方式最多保留 8192 对，避免大图产生不受控的 Koopman 拟合开销，也不消耗任务优化器的随机数流。
+实现最多等间隔保留 8192 对样本，避免大图上的辨识成本随节点数无界增长。原始轨迹和观测快照始终保存在客户端。
 
-### 7.2 残差式观测字典
+### 4.2 残差式观测字典
 
-观测字典不是只输出神经网络特征，而是保留常数项和原状态：
-
-$$
-\boxed{
-\Psi_{\omega}(h)=
-\left[1,\ h,\ \psi_{\omega}(h)\right]
-}
-$$
-
-默认维数为：
+观测字典定义为
 
 $$
-d_z=1+d_h+d_{\mathrm{aux}}
-=1+64+16=81.
+\Psi_{\omega_m}(h)
+=\left[1,\ h,\ \psi_{\omega_m}(h)\right].
 $$
 
-这也是当前 $K_m\in\mathbb R^{81\times81}$ 的来源。可学习部分 $\psi_\omega$ 是
+默认 $\psi_{\omega_m}$ 为
 
 ```text
 Linear(64, 64) -> Tanh
@@ -276,621 +160,817 @@ Linear(64, 64) -> Tanh
 Linear(64, 16)
 ```
 
-共 6 个参数张量、9,360 个标量参数。常数项和原始状态通道没有可学习参数，也不会被聚合。
-
-### 7.3 EDMD 解析估计本地 $K_m$
-
-令
+因此观测维数为
 
 $$
-Z_X=\Psi_{\omega_m}(H_t),
+d_z=1+d_h+d_{\mathrm{aux}}=1+64+16=81.
+$$
+
+常数通道保证字典能够表示平凡不变量，原状态通道保证隐状态可以从观测中直接读取，可学习通道负责补充非线性特征。
+
+### 4.3 EDMD 与算子约定
+
+ResKoop 内部采用行样本矩阵 $Z_X,Z_Y\in\mathbb R^{B\times d_z}$，并求解
+
+$$
+Z_Y\approx Z_XK_m^{\mathrm{row}},
+$$
+
+$$
+K_m^{\mathrm{row}}
+=\left(Z_X^\top Z_X+\lambda I\right)^{-1}
+Z_X^\top Z_Y,
+$$
+
+默认岭正则 $\lambda=10^{-3}$。服务端模式算法和客户端 $K^\star$ 合成统一使用列作用约定：
+
+$$
+Z_m=Z_X^\top,\qquad Z_m^+=Z_Y^\top,
+$$
+
+$$
+Z_m^+\approx K_mZ_m,
 \qquad
-Z_Y=\Psi_{\omega_m}(H_{t+1}),
+\boxed{K_m=(K_m^{\mathrm{row}})^\top.}
 $$
 
-实现采用行样本约定
+普通转置用于行作用到列作用的约定转换；复数坐标变换中的逆映射则使用共轭转置。二者不能混淆。
+
+### 4.4 字典学习与可靠性
+
+对解析得到的 $K_m^{\mathrm{row}}$ 做特征分解：
 
 $$
-Z_Y\approx Z_XK_m.
+K_m^{\mathrm{row}}v_{m,i}
+=\lambda_{m,i}v_{m,i}.
 $$
 
-每个 outer step 都通过带岭正则的 EDMD 重新计算
+逐模态归一化谱残差为
 
 $$
-\boxed{
-K_m=
-\left(Z_X^\top Z_X+\lambda I\right)^{-1}
-Z_X^\top Z_Y
-}
-$$
-
-默认 $\lambda=10^{-3}$。线性方程求解失败时才退化为对这个小型正则 Gram 矩阵求伪逆。
-
-### 7.4 字典训练目标
-
-对当前解析得到的 $K_m$ 做特征分解：
-
-$$
-K_mV_m=V_m\Lambda_m.
-$$
-
-在一个 outer step 内固定 $\Lambda_m,V_m$，用归一化逐模态谱残差训练字典：
-
-$$
-r_{m,i}=
-\frac{
-\left\|Z_Yv_{m,i}-\lambda_{m,i}Z_Xv_{m,i}\right\|_2
+\rho_{m,i}
+=\frac{
+\|Z_Yv_{m,i}-\lambda_{m,i}Z_Xv_{m,i}\|_2
 }{
-\left\|Z_Yv_{m,i}\right\|_2+\varepsilon
-},
+\|Z_Yv_{m,i}\|_2+\varepsilon
+}.
 $$
 
-$$
-\mathcal L_{\mathrm{dict}}
-=\frac{1}{d_z}\sum_i r_{m,i}^2.
-$$
+字典以平均平方谱残差训练；在每个 outer step 内冻结当前特征值和特征向量，仅更新 $\omega_m$，随后重新解析计算 $K_m$。默认每轮执行 1 个 outer step 和 4 个 inner steps。
 
-默认每轮执行 1 个 outer step、4 个 inner step，inner batch size 为 1024。结束后用更新后的字典再次解析计算最终 $K_m$、特征值、特征向量和状态空间模式。
+客户端上传列作用 $K_m$、源特征值、逐模态残差及整体谱残差。由于行作用算子和列作用算子的右特征向量不同，服务端重新分解列作用算子，并用 Hungarian 特征值匹配将源残差关联到新的特征对，而不是复用原数组位置。
 
-## 8. 新增：观测字典的独立 FedAvg
+## 5. 共享观测字典
 
-### 8.1 聚合什么
-
-客户端上传且服务端平均的只有 $\psi_{\omega_m}$ 的 `state_dict`：
+客户端只上传可学习字典 $\psi_{\omega_m}$ 的参数。服务端使用与配置一致的等权或样本量加权方式聚合：
 
 $$
-\boxed{
-\omega_g^r=\sum_{m\in\mathcal S_r}p_m\omega_m^r
-}
+\omega_g^r=
+\sum_{m\in\mathcal S_r}p_m\omega_m^r,
+\qquad
+\sum_m p_m=1.
 $$
 
-聚合权重与任务模型 FedAvg 保持一致。默认等权时，任务参数和字典参数都是 10 个客户端的算术平均。
-
-### 8.2 明确不聚合什么
-
-以下对象不属于字典 FedAvg：
-
-- 本地解析算子 $K_m^r$；
-- Koopman 特征值与特征向量；
-- Koopman 状态空间模式；
-- Koopman Adam 的一阶矩、二阶矩和步数；
-- Functional Map $C_m^r$；
-- 模式图的社区标签。
-
-$K_m^r$ 会上传给服务端用于对齐和比较，但服务端不会计算
-
-$$
-K_g=\sum_m p_mK_m,
-$$
-
-也不会把任何所谓的“全局 $K$”覆盖到客户端。原因是 $K_m$ 同时依赖本地轨迹和本地更新后的字典坐标；在未对齐坐标中直接平均不仅缺少物理含义，还会抹掉需要分析的动力学异质性。
-
-### 8.3 接收后为什么重置 Koopman Adam
-
-客户端在下一轮开始时，把本地字典参数从 $\omega_m^r$ 替换成服务端平均 $\omega_g^r$。旧 Adam 状态是在旧参数轨迹上积累的，尤其一阶矩包含客户端特有的更新方向。继续沿用会使“全局参数点”和“本地优化器历史”错配。
-
-因此实现采用：
+下一轮客户端先在旧私有坐标中完成上一轮候选包的被动 $K_m^\star$ 合成，然后安装 $\omega_g^r$。安装全局字典后重建普通 Koopman Adam：
 
 $$
 \omega_m^{r+1}\leftarrow\omega_g^r,
 \qquad
-\operatorname{AdamState}_m^{r+1}\leftarrow 0.
+\operatorname{AdamState}_{m}^{r+1}\leftarrow0.
 $$
 
-这里是完整重建普通 Adam，而不是套用任务链路的 O4 `block_v`。两套优化器状态协议必须分开理解：
+共享字典的作用是减小客户端之间的观测坐标漂移，但它不意味着各客户端的 $K_m$ 应当相同。每个 $K_m$ 仍由本地任务轨迹解析得到，且服务端不计算 $\sum_mp_mK_m$。
 
-| 分支 | 参数接收 | 优化器状态处理 |
-|---|---|---|
-| A-DGN 任务网络 | FedAvg 全局参数 | O4：聚合 block-v，重置一阶矩 |
-| ResKoop 可学习字典 | FedAvg 全局字典 | 重置整个 Koopman Adam |
-| 解析 $K_m$ | 不接收、不平均 | 无优化器状态 |
+## 6. Functional Map 对齐
 
-### 8.4 轮次一致性保护
+### 6.1 谱 medoid 参考
 
-字典消息使用协议标识 `reskoop_dictionary_fedavg_v1`，并携带 `source_round`。客户端在第 $r+1$ 轮只接受来源恰好为第 $r$ 轮的字典；缺失、协议不匹配或轮次陈旧都会直接报错，而不是静默沿用旧参数。
-
-日志还记录：
-
-- 是否收到全局字典；
-- 是否重置 Koopman Adam；
-- 覆盖前本地字典到全局字典的相对距离；
-- 覆盖后的相对距离；
-- 字典来源轮次。
-
-这些字段使“字典确实被聚合并安装”成为可验证事实，而不是仅凭代码路径推测。
-
-## 9. 本地 Koopman 模式筛选
-
-### 9.1 两类“模式”不要混淆
-
-实现同时保存：
-
-1. **观测空间特征向量** $v_{m,i}\in\mathbb C^{81}$：用于 Functional Map 对齐与模式图建边；
-2. **状态空间 Koopman mode** $\xi_{m,i}\in\mathbb C^{64}$：由特征向量逆变换得到，用于解释原隐藏状态的重构方向。
-
-当前模式图真正比较的是对齐后的观测空间特征向量，而不是未经对齐的 64 维状态 mode。
-
-### 9.2 去除常数模态并按残差选择
-
-由于字典含固定常数观测量，通常存在一个最接近 $\lambda=1$ 的平凡模态。客户端先移除该模态，再过滤非有限值和零范数模态，然后按归一化谱残差从小到大排序；$|\lambda|$ 只作为稳定的次级排序键。
-
-默认每个客户端上传最多 16 个非平凡候选模式：
+每轮服务端先计算客户端算子谱之间的归一化 Hungarian 距离：
 
 $$
-\mathcal M_m^r=
-\{(v_{m,i},\xi_{m,i},\lambda_{m,i},r_{m,i})\}_{i=1}^{16}.
+d_{\mathrm{spec}}(m,n)
+=\frac{
+\min_{\pi}\frac1{d_z}
+\sum_i|\lambda_{m,i}-\lambda_{n,\pi(i)}|
+}{
+\frac12\left(
+\frac1{d_z}\sum_i|\lambda_{m,i}|\right.
++\left.\frac1{d_z}\sum_i|\lambda_{n,i}|\right)+\varepsilon
+}.
 $$
 
-## 10. Functional Map：把局部 $K$ 空间映射到共享参考空间
-
-### 10.1 固定参考算子
-
-第一次构图时，服务端选择谱残差最小的客户端作为参考：
+参考客户端是谱空间的 medoid：
 
 $$
-s=\arg\min_m R_m,
+m_{\mathrm{ref}}
+=\arg\min_m\sum_{n\ne m}d_{\mathrm{spec}}(m,n).
 $$
 
-并保存当轮的 $K_s$。V1.0 后续轮次固定这个参考客户端、参考算子和参考轮次，不会每轮重选。这样模式社区随轮次的变化不会混入“参考坐标系也在移动”的额外因素。
+参考算子只定义本轮共享坐标系，不代表性能最好的客户端，也不是全局动力学模型。当前实现每轮重新选择参考。
 
-这是一项有意的设计约束，不代表固定参考一定是最终最优方案；参考空间的迭代更新属于后续版本。
+### 6.2 酉 Functional Map
 
-### 10.2 对齐目标
-
-对每个客户端求一个复数酉映射
-
-$$
-C_m:\mathcal Z_m\rightarrow\mathcal Z_s,
-$$
-
-使动力学尽量满足交换关系：
-
-$$
-\boxed{C_mK_m\approx K_sC_m},
-$$
-
-并约束
-
-$$
-C_m^HC_m=I.
-$$
-
-归一化交换残差定义为
-
-$$
-R_C=
-\frac{\|C_mK_m-K_sC_m\|_F}
-{\sqrt{\|K_m\|_F^2+\|K_s\|_F^2}}.
-$$
-
-酉性误差为
-
-$$
-R_U=
-\frac{\|C_m^HC_m-I\|_F}{\sqrt{d_z}}.
-$$
-
-约束 $C_m$ 为酉矩阵可以防止退化的零映射，并尽量保留向量内积、范数和后续余弦相似度。
-
-### 10.3 求解流程
-
-当前求解器只作用在默认 $81\times81$ 的小算子上：
-
-1. 分别分解 $K_m$ 和 $K_s$；
-2. 根据特征值距离，用 Hungarian 匹配建立谱排列 $P$；
-3. 构造无约束初值 $V_sP\operatorname{pinv}(V_m)$；
-4. 通过 polar/SVD 投影到最近酉矩阵；
-5. 在单位酉群切空间上做最多 8 次投影梯度细化，并用回溯保证残差不增；
-6. 在恒等映射与谱匹配初值中选择交换残差较低者作为细化起点。
-
-参考客户端使用严格恒等映射 $C_s=I$。
-
-!!! info "不会对大图做 SVD"
-    Functional Map 的 SVD、特征分解和伪逆仅作用于 $d_z\times d_z$ 的小型 Koopman 算子或映射。实现不会对图拉普拉斯、邻接矩阵或节点特征矩阵执行稠密 SVD。
-
-### 10.4 模式运输
-
-局部观测特征向量被运输到参考空间：
-
-$$
-\widetilde v_{m,i}=C_mv_{m,i}.
-$$
-
-只有 $\widetilde v_{m,i}$ 参与跨客户端相似度计算。原始 $v_{m,i}$、状态模式 $\xi_{m,i}$、特征值和残差仍作为元数据保存，便于解释和回查。
-
-## 11. 仅用空间相似度构建模式图
-
-### 11.1 唯一边权
-
-根据奥卡姆剃刀原则，当前图只保留 Functional Map 对齐后的空间方向相似度：
+对于客户端 $m$，服务端求解
 
 $$
 \boxed{
-S_{ij}=
-\left|
-\frac{\widetilde v_i^H\widetilde v_j}
-{\|\widetilde v_i\|_2\|\widetilde v_j\|_2}
-\right|
+\min_{C_m}\|C_mK_m-K_{\mathrm{ref}}C_m\|_F,
+\qquad C_m^HC_m=I.
 }
 $$
 
-绝对值使它对复相位和实数符号翻转不敏感。特征值距离、残差可靠性和时间衰减不进入边权；它们只作为诊断信息。
+求解流程包括：
 
-### 11.2 跨客户端、客户端均衡的稀疏化
+1. 分解本地算子和参考算子；
+2. 通过 Hungarian 匹配谱排列；
+3. 构造 $V_{\mathrm{ref}}P\operatorname{pinv}(V_m)$；
+4. 用 polar/SVD 投影到酉矩阵；
+5. 在酉群切空间执行少量投影梯度细化。
 
-直接对全部模式做全连接会让拥有大量相似内部模式的客户端主导社区。当前稀疏化策略为：
-
-1. 对源模式 $i$，完全排除同一客户端的模式；
-2. 在每个其他客户端中先保留相似度最高的一个候选；
-3. 再从这些“每客户端一个”的候选中取前 $k$ 个，默认 $k=5$；
-4. 对所有有向选择取并集并对称化。
-
-因此图中每条边都跨客户端，且一个外国客户端不能用多个近重复模式占满某个节点的邻居名额。
-
-### 11.3 Louvain 自动发现社区数
-
-服务端在加权稀疏图上执行确定性 Louvain：
+对齐后的算子为
 
 $$
-\{\mathcal C_1,\ldots,\mathcal C_K\}
-=\operatorname{Louvain}(G_{\mathrm{mode}}).
+\widetilde K_m=C_mK_mC_m^H.
 $$
 
-默认 `resolution=1.0`，随机种子固定，因此轮次间差异主要来自模式图本身，而不是社区算法随机重启。社区数量 $K$ 由图结构发现，不使用预设聚类数，也不依赖 eigengap。
-
-## 12. 聚类质量：不能只看社区数量
-
-发现多个社区不等于社区真的分得开。V1.0 同时在**完整相似度几何**和**稀疏模式图**上报告质量指标。
-
-### 12.1 完整几何指标
-
-令距离 $D_{ij}=1-S_{ij}$。报告：
-
-- `within_similarity`：同社区模式的平均完整空间相似度；
-- `between_similarity`：不同社区模式的平均完整空间相似度；
-- `similarity_gap`：二者之差，越大越好；
-- `within_distance` 和 `between_distance`；
-- `between_within_distance_ratio`：
+服务端同时记录交换残差
 
 $$
-\rho_D=
-\frac{\overline D_{\mathrm{between}}}
-{\overline D_{\mathrm{within}}}.
+R_{C,m}=
+\frac{\|C_mK_m-K_{\mathrm{ref}}C_m\|_F}
+{\sqrt{\|K_m\|_F^2+\|K_{\mathrm{ref}}\|_F^2}}
 $$
 
-理想情况下 $\rho_D>1$，且越大说明簇间距离相对簇内距离越明显。
-
-还报告全空间 Silhouette：
+和酉性误差
 
 $$
-s(i)=\frac{b(i)-a(i)}{\max\{a(i),b(i)\}},
+R_{U,m}=
+\frac{\|C_m^HC_m-I\|_F}{\sqrt{d_z}}.
 $$
 
-其中 $a(i)$ 是样本到本社区的平均距离，$b(i)$ 是到最近其他社区的平均距离。接近 1 较好，接近 0 表示社区在完整几何中严重重叠，负值说明可能分错。
+所有特征分解、伪逆和 SVD 均作用于默认 $81\times81$ 的观测算子，不作用于图邻接矩阵、图拉普拉斯或节点特征矩阵。
 
-### 12.2 稀疏图指标
+## 7. 可靠动力学模式
 
-- `modularity`：Louvain 所优化的加权模块度；
-- `mean_conductance`：社区平均传导率，越低通常越好。
-
-不能只用 modularity 证明聚类有效，因为 Louvain 本身就在优化它。若 modularity 很高、但 Silhouette 约为 0 且 $\rho_D\approx1$，更可能是 kNN 稀疏化制造了看似清楚的图分区，而原始对齐空间并没有强分离。
-
-## 13. 全局模式库与个性化返回
-
-### 13.1 社区代表模式
-
-对社区 $\mathcal C_k$，先把成员模式归一化，选择与其他成员总相似度最大的模式作为 anchor。随后校正每个复数模式相对 anchor 的相位，再求均值并重新归一化：
+在共享坐标中分解
 
 $$
-\bar v_k=
-\operatorname{Normalize}
-\left(
-\frac{1}{|\mathcal C_k|}
-\sum_{i\in\mathcal C_k}
-e^{-j\phi_i}\widetilde v_i
+\widetilde K_mU_{m,i}=U_{m,i}T_{m,i}.
+$$
+
+当前实现采用一维 block：
+
+$$
+U_{m,i}\in\mathbb C^{d_z\times1},
+\qquad
+T_{m,i}=[\lambda_{m,i}].
+$$
+
+候选模式经过以下过滤：
+
+1. 移除最接近 $\lambda=1$ 的常数模态；
+2. 移除非有限值和零范数特征向量；
+3. 要求匹配后的谱残差不超过阈值；
+4. 按谱残差升序、$|\lambda|$ 降序稳定排序；
+5. 每客户端最多保留 `feddgn_candidate_top_modes` 个模式，默认 16。
+
+逐模态残差衡量模式对**来源客户端**轨迹的解释质量。它是可靠性指标，而不是目标客户端上的迁移收益。
+
+## 8. 服务端动力学冲突筛选
+
+### 8.1 子空间重叠
+
+对目标客户端 $m$ 的本地模式 $a$ 与外部候选 $c$，定义
+
+$$
+O_{a,c}=U_{m,a}^HU_c,
+$$
+
+$$
+s_{a,c}
+=\frac{\|O_{a,c}\|_F^2}{\min(r_a,r_c)}.
+$$
+
+$s_{a,c}$ 描述两个 invariant subspaces 的重叠程度。低重叠表示候选主要提供新方向，本身不构成冲突。
+
+### 8.2 重叠方向上的演化分歧
+
+若两个模式在重叠方向上兼容，应近似满足
+
+$$
+T_{m,a}O_{a,c}\approx O_{a,c}T_c.
+$$
+
+归一化分歧定义为
+
+$$
+d_{a,c}
+=\frac{
+\|T_{m,a}O_{a,c}-O_{a,c}T_c\|_F^2
+}{
+(\|T_{m,a}\|_2^2+\|T_c\|_2^2)
+\|O_{a,c}\|_F^2+\varepsilon
+}.
+$$
+
+于是单对模式的冲突分数为
+
+$$
+\chi_{a,c}=s_{a,c}d_{a,c}.
+$$
+
+候选 $c$ 对目标客户端 $m$ 的冲突使用最大 veto：
+
+$$
+\boxed{
+\chi_{m\leftarrow c}=\max_a\chi_{a,c}.
+}
+$$
+
+该定义区分三类关系：
+
+| 关系 | 重叠 $s$ | 分歧 $d$ | 含义 |
+|---|---:|---:|---|
+| 共享 | 高 | 低 | 相同方向具有相容演化 |
+| 互补 | 低 | 任意 | 候选主要提供本地未占据方向 |
+| 冲突 | 高 | 高 | 相同方向要求不相容演化 |
+
+这与按模式余弦相似度建图不同：相似度低的互补模式可以被保留，而占据相同方向但具有矛盾特征值的模式会被拒绝。
+
+### 8.3 兼容性与通信预算
+
+若
+
+$$
+\chi_{m\leftarrow c}>\tau_{\mathrm{conflict}},
+$$
+
+候选被硬筛除。其余候选获得平滑兼容性
+
+$$
+\boxed{
+g_{m,c}^{\mathrm{compat}}
+=\exp\!\left(
+-\frac{\chi_{m\leftarrow c}}{\tau_{\mathrm{comp}}}
 \right).
+}
 $$
 
-代表特征值取社区成员特征值的算术平均：
+候选首先按来源客户端分组，各组内部按冲突、可靠性和模式编号排序；随后以 round-robin 方式跨来源选择，直到达到目标客户端的通信预算。该策略避免单一来源凭借大量近重复模式占满候选包。
+
+### 8.4 返回目标客户端坐标
+
+共享空间候选 $U_c$ 被映射回目标客户端的私有观测坐标：
 
 $$
-\bar\lambda_k=
-\frac{1}{|\mathcal C_k|}
-\sum_{i\in\mathcal C_k}\lambda_i.
+\boxed{
+U_{m\leftarrow c}=C_m^HU_c.
+}
 $$
 
-由此形成
+服务端为每个目标客户端单独构造候选包
 
 $$
-\mathcal B=
-\{(\bar v_k,\bar\lambda_k,|\mathcal C_k|)\}_{k=1}^{K}.
+\mathcal P_m=
+\left\{
+(U_{m\leftarrow c},T_c,\chi_{m\leftarrow c},
+g_{m,c}^{\mathrm{compat}},\rho_c,\operatorname{source}_c)
+\right\}.
 $$
 
-### 13.2 客户端个性化视图
+候选包严格携带目标客户端、来源轮次和参考客户端信息。它不是全局 $K$，也不会覆盖客户端的 $K_m$。
 
-客户端 $m$ 收到：
+## 9. 客户端私有需求估计
 
-- 自己的 Functional Map $C_m$ 及其残差、酉性误差；
-- 完整的全局模式库 $\mathcal B$；
-- 自己上传的候选模式；
-- 与自己社区重合的外国客户端模式，按与本地模式的最大空间相似度排序，最多返回 16 个；
-- 全局模式图的公开摘要。
+客户端保留与 $K_m$ 同坐标的私有快照
 
-“个性化”目前只表示返回内容按客户端社区关系筛选，并不表示这些模式已经作用到本地任务网络。
+$$
+Z_m,Z_m^+\in\mathbb C^{d_z\times B}.
+$$
 
-## 14. 一轮完整协议
+本地 Koopman 预测残差为
 
-### 14.1 第 1 轮
+$$
+R_m=Z_m^+-K_mZ_m.
+$$
 
-1. 服务端广播初始 A-DGN 参数和空的 O4 二阶矩；
-2. 所有客户端从同一个确定性初始化的 ResKoop 字典开始；
-3. 客户端训练任务网络，生成 detach 轨迹，微调本地字典，解析 $K_m^1$；
-4. 客户端上传任务参数、block-v、字典参数和模式分析包；
-5. 服务端分别聚合任务参数、block-v 和字典参数；
-6. 服务端选定并固定参考 $K_s$，求 Functional Maps，构图和返回模式视图。
+对于回拉后的候选 $(U_{m\leftarrow c},T_c)$，先对 $U$ 做 QR 规范化，并同步变换 $T_c$。候选诱导的一阶算子方向为
 
-### 14.2 第 $r\ge2$ 轮
+$$
+D_{m,c}
+=-(K_mU_{m\leftarrow c}-U_{m\leftarrow c}T_c)
+U_{m\leftarrow c}^H.
+$$
 
-1. 客户端从私有 checkpoint 恢复上轮状态；
-2. 安装服务端 A-DGN 参数，并按 O4 重建任务优化器；
-3. 安装上一轮全局字典，验证协议和轮次，重置 Koopman Adam；
-4. 读取上一轮匹配的个性化模式视图，但不用于任务计算；
-5. 执行本轮任务训练和本地 ResKoop 拟合；
-6. 解析新的本地 $K_m^r$ 并上传；
-7. 服务端重复三类聚合与 Functional Map 模式分析。
+其在私有快照上的一阶预测变化为 $D_{m,c}Z_m$。定义动力学需求分数
 
-这里有一个关键时间顺序：客户端收到的是“上一轮聚合结果”，而客户端上传的是“本轮本地更新结果”。代码用严格的 `source_round` 和模式图 `round` 检查防止两者错位。
+$$
+\boxed{
+N_{m,c}
+=\operatorname{Re}
+\langle R_m,D_{m,c}Z_m\rangle_F.
+}
+$$
 
-## 15. 通信对象总表
+对小正步长 $\beta$，有
 
-| 对象 | 方向 | 服务端操作 | 下一轮是否覆盖客户端 | 是否影响任务前向 |
-|---|---|---|---|---|
-| A-DGN 参数 $\theta_m$ | 双向 | FedAvg | 是 | 是 |
-| 任务 block-v 标量 | 双向 | 按参数块加权平均 | 是，用于初始化任务二阶矩 | 是，通过优化步骤 |
-| 字典参数 $\omega_m$ | 双向 | 独立 FedAvg | 是，并重置 Koopman Adam | 否 |
-| 本地 $K_m$ | 客户端到服务端 | 保留、对齐，不平均 | 否 | 否 |
-| 特征值/特征向量/状态模式 | 客户端到服务端 | 筛选、构图、聚类 | 不直接覆盖 | 否 |
-| Functional Map $C_m$ | 服务端到客户端 | 个性化返回 | 仅保存分析视图 | 否 |
-| 全局模式库 $\mathcal B$ | 服务端到客户端 | 社区内相位对齐平均 | 仅保存分析视图 | 否 |
+$$
+\|R_m-\beta D_{m,c}Z_m\|_F^2
+=\|R_m\|_F^2
+-2\beta N_{m,c}
++\beta^2\|D_{m,c}Z_m\|_F^2.
+$$
 
-默认配置下，字典参数为 9,360 个 float32，原始参数体积约 37.4 KB；$K_m$ 为 $81\times81$ float32，约 26.2 KB。客户端还上传最多 16 个复数特征向量、状态模式和少量元数据。实际通信统计以日志中的 `upload_bytes`、`koopman_dictionary_bytes` 和 `koopman_upload_bytes` 为准。
+因此 $N_{m,c}>0$ 表示该候选在一阶意义下可能减小本地预测残差；$N_{m,c}\le0$ 的候选不参与合成。需求门控为
 
-## 16. 保存结果与可视化
+$$
+g_{m,c}^{\mathrm{need}}
+=\frac{[N_{m,c}]_+}
+{\max_j[N_{m,j}]_++\varepsilon},
+$$
 
-### 16.1 客户端 Koopman 文件
+最终权重为
 
-每个客户端的最新分析保存在：
+$$
+\boxed{
+\alpha_{m,c}
+=g_{m,c}^{\mathrm{compat}}
+g_{m,c}^{\mathrm{need}}.
+}
+$$
+
+服务端 compatibility 回答“候选是否与目标动力学冲突”，客户端 necessity 回答“候选是否有机会修正我的私有残差”。二者承担不同职责。
+
+## 10. 被动个性化算子 $K_m^\star$
+
+给定候选集合及其权重，客户端求解带本地锚定的软约束问题：
+
+$$
+\boxed{
+K_m^\star
+=\arg\min_K
+\|K-K_m\|_F^2
++\eta\sum_c\alpha_{m,c}
+\|KU_{m\leftarrow c}-U_{m\leftarrow c}T_c\|_F^2.
+}
+$$
+
+第一项限制个性化算子偏离本地辨识结果，第二项仅吸收非冲突且具有正需求的候选动力学。其正规方程为
+
+$$
+K_m^\star A_m=B_m,
+$$
+
+$$
+A_m=I+\eta\sum_c\alpha_{m,c}
+U_{m\leftarrow c}U_{m\leftarrow c}^H,
+$$
+
+$$
+B_m=K_m+\eta\sum_c\alpha_{m,c}
+U_{m\leftarrow c}T_cU_{m\leftarrow c}^H.
+$$
+
+因此
+
+$$
+\boxed{
+K_m^\star=B_mA_m^{-1},
+}
+$$
+
+实现通过线性方程求解获得结果，不显式计算逆矩阵。若候选为空或所有需求非正，则 $A_m=I$、$B_m=K_m$，自然得到 $K_m^\star=K_m$。
+
+需要强调的是，$K_m^\star$ 当前只用于分析：
+
+$$
+\frac{\partial\mathcal L_{\mathrm{task}}}
+{\partial K_m^\star}=0.
+$$
+
+它不修改 A-DGN 参数，不构造外力，不更新 ResKoop 字典，也不作为下一轮的本地 $K_m$。从 $K_m^\star$ 到任务动力学的耦合需要独立定义稳定性约束、状态空间映射和因果消融，因此留给后续方法版本。
+
+## 11. 跨轮协议
+
+### 11.1 第 1 轮
+
+1. 客户端从共同初始化开始，但各自训练本地 A-DGN；
+2. 客户端从 detached 轨迹拟合本地字典和 $K_m^1$；
+3. 客户端上传字典参数、列作用 $K_m^1$ 和可靠性元数据；
+4. 服务端聚合字典，选择谱 medoid，完成对齐与冲突筛选；
+5. 服务端保存数值分析并发布每个客户端的候选包 $\mathcal P_m^1$。
+
+第 1 轮没有匹配的上一轮候选，因此不计算 $K_m^\star$。
+
+### 11.2 第 $r\ge2$ 轮
+
+1. 客户端恢复本地任务模型、任务 Adam、上一轮私有 $K_m^{r-1},Z_m^{r-1},Z_m^{+,r-1}$；
+2. 验证候选包目标身份、协议版本与 `source_round=r-1`；
+3. 在上一轮私有坐标中计算并保存 $K_m^{\star,r-1}$；
+4. 安装上一轮聚合字典并重置 Koopman Adam；
+5. 独立训练本轮本地 A-DGN；
+6. 生成新 detached 轨迹，拟合本轮字典和 $K_m^r$；
+7. 上传本轮字典与 Koopman 数据，服务端生成 $\mathcal P_m^r$。
+
+该顺序保证 $K_m^{r-1}$、私有快照和回拉候选处于同一观测坐标中。候选包只在下一轮被消费，所以最后一个服务端轮次生成的候选不影响已完成的任务训练。
+
+## 12. 通信与隐私边界
+
+| 对象 | 方向 | 典型尺寸 | 服务端操作 |
+|---|---|---:|---|
+| ResKoop 字典参数 | 双向 | 9,360 个 float32 | FedAvg |
+| $K_m$ | 客户端→服务端 | $81\times81$ | 对齐和模式分解，不平均 |
+| 特征值与逐模态残差 | 客户端→服务端 | 各 81 个 | 可靠性匹配与过滤 |
+| 候选 $U,T$ 及诊断 | 服务端→客户端 | 最多 16 个模式 | 目标条件返回 |
+| A-DGN 参数与任务 Adam | 不通信 | - | 服务端不可见 |
+| 原始图、标签、隐状态轨迹 | 不通信 | - | 服务端不可见 |
+| 私有 $Z_m,Z_m^+$ | 不通信 | 最多 $81\times1024$ | 客户端需求估计 |
+| $K_m^\star$ | 不通信 | $81\times81$ | 客户端保存与可视化 |
+
+该边界不等同于形式化隐私保证；上传的算子和谱仍可能包含关于本地动力学的统计信息。若需要差分隐私或安全聚合，应在当前协议之外单独定义。
+
+## 13. 日志系统
+
+### 13.1 任务指标
+
+默认 `minimal` 日志不会展开模型参数。运行目录包含：
+
+| 文件 | 内容 |
+|---|---|
+| `config.json` | 解析后的完整运行配置 |
+| `metrics.csv` | 每轮客户端均值，包括 train/validation/test 指标及 Koopman 诊断 |
+| `client_best.csv` | 每客户端最佳验证轮及其配对测试指标 |
+| `result.json` | 最终的 per-client best-validation paired-test 汇总 |
+
+`result.json` 的 ACC/AUC 不是最后一轮测试均值，而是对每个客户端先选择其最佳验证轮，再读取同轮测试指标，最后计算客户端均值和标准差。
+
+当 `log_profile=diagnostic` 时，系统额外写入逐客户端指标。由于当前任务模型不通信，模型更新向量的跨客户端诊断不会在 `feddgn` 路径中生成。
+
+### 13.2 Koopman 与候选数值日志
+
+服务端在
+
+```text
+<run>/koopman/candidates/
+```
+
+写入：
+
+| 文件 | 内容 |
+|---|---|
+| `latest.pt` | 本轮完整分析：raw/aligned $K$、Functional Maps、模式、冲突记录、候选包 |
+| `latest.json` | 可读摘要：参考客户端、冲突分布、拒绝率、来源矩阵、对齐误差 |
+| `server_rounds.csv` | 每轮参考、候选量、冲突统计和 Functional Map 质量 |
+
+客户端在
 
 ```text
 <run>/koopman/client_<id>/
 ```
 
-包含：
+保存：
 
-- `K.pt`：本地解析 Koopman 算子；
-- `dictionary.pt`：本轮本地更新后的字典；
-- `eigenvalues.pt`、`eigenvectors.pt`；
-- `residual.pt`：逐模态归一化谱残差；
-- `modes.pt`：64 维状态空间模式；
-- `metadata.json`：拟合、谱半径、条件数、有效秩等诊断；
-- `personalized_modes.pt/json`：最近一次接收的服务端个性化视图。
+| 文件 | 内容 |
+|---|---|
+| `latest_K.pt` | 按保存间隔记录当前本地列作用 $K$、特征值和模式残差 |
+| `personalized/latest.pt` | 完整 $K$、$K^\star$、$\Delta K$、候选明细和统计 |
+| `personalized/latest.json` | 可读的候选权重、需求、残差及可视化入口 |
 
-### 16.2 服务端模式图文件
+关键客户端诊断包括：候选总数、正需求数、活跃候选数、平均 compatibility/need/$\alpha$、$\|K^\star-K\|_F/\|K\|_F$、前后私有快照预测残差、前后谱半径，以及候选约束残差。
 
-最新模式图位于：
+### 13.3 耗时日志
+
+`timing.csv` 每轮写一行，与日志 profile 无关。主要字段为：
+
+| 字段组 | 测量范围 |
+|---|---|
+| `round_wall_seconds` | 完整通信轮 wall time |
+| `client_parallel_wall_seconds` | 服务端等待并行客户端完成的 wall time |
+| `task_mean/max_seconds` | 本地任务训练、验证、测试和最佳模型保存 |
+| `reskoop_mean/max_seconds` | detached rollout、字典训练、$K$ 辨识、快照与数据包构造 |
+| `kstar_mean/max_seconds` | 候选接收、私有需求、$K^\star$ 求解、保存及选择性绘图 |
+| `kstar_compute_mean/max_seconds` | 仅 $K^\star$ 数值求解 |
+| `kstar_visualization_mean/max_seconds` | 仅被触发轮次的客户端绘图 |
+| `dictionary_receive_mean/max_seconds` | 安装全局字典并重建 Koopman Adam |
+| `client_other_mean/max_seconds` | 客户端切换、数据加载及未归入上述阶段的工作 |
+| `server_dictionary_fedavg_seconds` | 字典聚合 |
+| `server_modes_build_seconds` | Functional Map、模式提取、冲突筛选和候选构造 |
+| `server_modes_return_seconds` | 发布候选包与全局字典 |
+| `server_numeric_artifacts_seconds` | 保存候选数值产物 |
+| `server_metric_logging_seconds` | 写任务和诊断指标 |
+| `server_checkpoint_seconds` | 保存服务端 checkpoint |
+| `server_update_seconds` | 服务端从接收消息到完成本轮更新的总耗时 |
+
+客户端的 mean/max 是并行 worker 上独立测得的持续时间，不能把各阶段均值相加后当作整轮 wall time。`kstar_seconds` 已包含 `kstar_compute_seconds` 和可能的 `kstar_visualization_seconds`，也不能重复相加。
+
+## 14. 可视化与诊断面板
+
+可视化必须沿着实际知识传递链组织，而不是只展示最终 ACC 或一个低维谱图。当前设计围绕六个诊断问题展开：
 
 ```text
-<run>/koopman/mode_graph/latest.pt
-<run>/koopman/mode_graph/latest.json
+Functional Map 对齐
+        -> 动力学冲突筛选
+        -> 候选漏斗
+        -> compatibility × need
+        -> K -> K* 的修改效果
+        -> 跨轮知识流
 ```
 
-默认每 10 轮以及最终轮归档一次：
+这些图严格保持服务端与客户端的观测边界。服务端图只使用对齐算子、模式元数据和冲突记录；客户端图才使用私有 $Z_m,Z_m^+$、need 和 $K_m^\star$。不上传私有快照来换取可视化。
+
+### 14.1 已实现的客户端 $K\rightarrow K^\star$ 页面
+
+当前自动页面只比较**同一个客户端、同一个来源轮次、同一个私有观测坐标**中的 $K_m$ 与 $K_m^\star$。输出目录为
 
 ```text
-<run>/koopman/mode_graph/round_0010/
-<run>/koopman/mode_graph/round_0020/
-...
+<run>/koopman/client_<id>/personalized/figures/
+  source_round_<r>/
+    K_vs_Kstar_matrix.png
+    summary.json
+    index.html
+  latest.html
 ```
 
-服务端 checkpoint 额外保存全局字典、字典来源轮次、字典聚合摘要、固定参考 $K_s$ 和 O4 状态，支持审计和续跑。
+默认在第一次能够计算 $K^\star$、每 `feddgn_kstar_visualize_every` 个目标训练轮（默认 10）以及最后一个可消费候选的轮次生成。
 
-### 16.3 模式图仪表盘
+页面并排显示三张矩阵热图：
 
-模式图只在归档轮次渲染，默认不是每轮渲染。当前仪表盘包含 6 张图：
+1. `log10 |K|`：本地解析算子的元素幅值；
+2. `log10 |K*|`：软约束合成后的元素幅值；
+3. `log10 |K* - K|`：候选模式在算子层面诱导的更新位置与强度。
 
-1. `global_mode_graph.png`：模式网络、社区与客户端来源；
-2. `mode_similarity_matrix.png`：完整对齐空间相似度；
-3. `client_community_matrix.png`：客户端—社区计数；
-4. `client_community_distribution.png`：每个客户端的社区比例；
-5. `functional_map_quality.png`：交换残差与酉性误差；
-6. `community_evolution.png`：归档轮次上的社区变化。
+$K$ 与 $K^\star$ 使用完全相同的色标，$\Delta K$ 使用独立色标。因此第三张图适合判断修改集中在哪些观测通道，但不能将其颜色深浅直接与前两张图比较。
 
-`community_spectrum.png` 已废弃并会在重新生成仪表盘时清理。原因是当前边权不使用特征值；把 Louvain 社区画在复平面谱图上，容易让读者误以为社区是由频率或衰减率定义的。客户端级总览中的 `koopman_spectrum.png` 仍然保留，因为它只用于查看本地算子谱，不承担模式图社区解释。
+`summary.json` 同时保留
 
-## 17. 默认配置
+$$
+\|K\|_F,\quad \|\Delta K\|_F,\quad
+\frac{\|\Delta K\|_F}{\|K\|_F},\quad
+\rho(K),\quad \rho(K^\star),\quad
+\frac{\|\operatorname{Im}(\Delta K)\|_F}{\|\Delta K\|_F}.
+$$
+
+它们分别用于判断修改幅度、谱稳定性变化和复数更新占比。矩阵热图只说明 $K^\star$ 的数值变化，不能证明任务性能提高；$K^\star$ 当前没有进入任务前向或梯度计算。
+
+### 14.2 服务端图：Functional Map 对齐质量
+
+#### 图 A：跨客户端残差对比
+
+对每个客户端记录三个归一化残差：
+
+$$
+R_m^{\mathrm{id}},\qquad R_m^{\mathrm{spec}},\qquad
+R_m^{\mathrm{final}},
+$$
+
+分别对应恒等映射、谱初始化和最终 Functional Map 的交换残差；同时记录酉性误差
+
+$$
+E_m^{\mathrm{unitary}}
+=\frac{\|C_m^HC_m-I\|_F}{\sqrt{d_z}}.
+$$
+
+推荐使用 grouped bar 或 dumbbell，而不是只画最终值。正常情况下应有
+
+$$
+R_m^{\mathrm{final}}<R_m^{\mathrm{id}},
+$$
+
+并且大多数客户端满足 $R_m^{\mathrm{final}}\le R_m^{\mathrm{spec}}$。数据来自 `latest.pt` 的 `functional_map_reports` 和 `server_rounds.csv` 的聚合字段。
+
+#### 图 B：mode correspondence heatmap
+
+对目标客户端 $m$ 绘制
+
+$$
+M_{ij}=\left|v_{\mathrm{ref},i}^H C_m v_{m,j}\right|^2.
+$$
+
+清晰的置换对角结构表示 $C_m$ 建立了相对明确的 mode 对应；大面积均匀扩散表示一个本地 mode 被映射到多个参考 mode，此时后续 mode-level overlap 只能作弱解释。该图只对指定 target client 生成，避免批量产生大量 $d_z\times d_z$ 图片。
+
+### 14.3 服务端图：Mode Conflict Map 与候选漏斗
+
+#### 图 C：overlap--disagreement 冲突图
+
+每个外部候选绘制点
+
+$$
+s_{m,c}=\text{overlap},\qquad d_{m,c}=\text{disagreement},
+$$
+
+并叠加当前硬冲突边界
+
+$$
+d=\frac{\tau_{\mathrm{conflict}}}{s}.
+$$
+
+横轴高、纵轴高的右上区域表示“同方向且演化不相容”，点被 veto；横轴低的点即使 disagreement 较大，通常也代表互补方向而不是冲突。颜色编码 `accepted/rejected`，marker 可编码 `source_client`，可靠性 $\rho$ 建议保留在 hover 或表格中，避免把较小残差误画成较小质量。
+
+数据来自 `latest.pt` 的 `conflict_rows`：`overlap`、`disagreement`、`conflict`、`compatibility`、`reliability` 和 `rejected`。该图验证的是服务端“重叠方向上的动力学冲突”，不是客户端需求。
+
+#### 图 D：Candidate Funnel
+
+对每个 target client，将候选数量按以下阶段显示为水平 funnel bar：
+
+| 阶段 | 数量 | 语义 |
+|---|---:|---|
+| 冲突评估 | `raw_external_count` | 通过来源可靠性筛选、进入目标条件比较的外部模式 |
+| 非冲突 | `raw_external_count - conflict_rejected_count` | 通过动力学冲突 veto |
+| 通信发送 | `candidate_count` | 经过来源分组、round-robin 和候选预算 |
+| 正向需求 | `candidate_positive_need` | $N_{m,c}>0$ 的候选 |
+| 实际吸收 | `candidate_active` | $\alpha_{m,c}>0$ 并进入 $A_m,B_m$ |
+
+“通信发送”阶段减少不一定表示模式质量差，也可能只是预算截断；“正向需求”减少才表示候选没有沿一阶方向降低私有预测残差。
+
+### 14.4 客户端图：Compatibility--Necessity Map
+
+对每个收到的候选绘制
+
+$$
+x=g_{m,c}^{\mathrm{compat}},\qquad
+y=g_{m,c}^{\mathrm{need}},\qquad
+\alpha_{m,c}=xy.
+$$
+
+四个区域分别表示：
+
+| 区域 | 解释 |
+|---|---|
+| 高 compatibility、高 need | 最有可能被吸收的候选 |
+| 高 compatibility、低 need | 安全但对当前私有残差帮助小 |
+| 低 compatibility、高 need | 目标有需求但服务端认为风险高 |
+| 低 compatibility、低 need | 当前轮次可忽略 |
+
+图中可用颜色表示 `source_client`，点大小表示 $\alpha$；原始 $N_{m,c}$ 另存为 hover 或附图，避免 need 归一化后掩盖绝对残差尺度。数据来自客户端 `personalized/latest.pt` 的 `candidate_rows`。
+
+### 14.5 客户端图：$K\rightarrow K^\star$ 的真实修改效果
+
+矩阵热图之外，页面应增加三个诊断 panel。
+
+#### Panel A：私有轨迹残差 before/after
+
+$$
+R_{\mathrm{before}}=
+\frac{\|Z^+-KZ\|_F}{\|Z^+\|_F},\qquad
+R_{\mathrm{after}}=
+\frac{\|Z^+-K^\star Z\|_F}{\|Z^+\|_F}.
+$$
+
+用 dumbbell 显示两者，并记录只用于诊断的
+
+$$
+G_{\mathrm{pred}}=
+\frac{R_{\mathrm{before}}-R_{\mathrm{after}}}
+{R_{\mathrm{before}}+\varepsilon}.
+$$
+
+$G_{\mathrm{pred}}>0$ 表示私有轨迹拟合改善，$G_{\mathrm{pred}}<0$ 表示合成后恶化。
+
+#### Panel B：active mode constraint before/after
+
+对 active candidate 绘制
+
+$$
+r_c^{\mathrm{before}}=
+\frac{\|KU_c-U_cT_c\|_F}{\|U_cT_c\|_F},\qquad
+r_c^{\mathrm{after}}=
+\frac{\|K^\star U_c-U_cT_c\|_F}{\|U_cT_c\|_F}.
+$$
+
+候选约束变好而私有残差变差是一个需要单独报告的失效模式：它说明 $K^\star$ 更服从外部 mode，但外部约束的联合吸收没有改善目标客户端的本地动力学。
+
+#### Panel C：数值稳定性摘要
+
+显示 $\|\Delta K\|_F/\|K\|_F$、$\rho(K)$、$\rho(K^\star)$ 和正规方程的 `A_condition`。谱半径只作数值摘要，不再绘制复平面谱分布。
+
+### 14.6 跨轮图：Round-wise Knowledge Flow
+
+跨轮页面同时画出以下曲线，不将它们人为压缩为单一“知识饱和分数”：
+
+| 曲线 | 指标 | 数据来源 |
+|---|---|---|
+| 对齐质量 | `mean_functional_map_residual`、`max_functional_map_orthogonality_error` | `server_rounds.csv` |
+| 冲突动态 | `conflict_rejection_ratio`、median、q95 | `server_rounds.csv` |
+| 候选生存 | sent、positive need、active | server summary + client history |
+| 吸收强度 | `candidate_mean_alpha`、`candidate_delta_k_relative` | client history |
+| 私有收益 | `candidate_prediction_residual_gain` | client history |
+
+如果出现知识吸收与饱和，通常应观察到后期 `candidate_active`、平均 $\alpha$ 和相对 $\Delta K$ 下降，而早期 $G_{\mathrm{pred}}$ 可能为正并逐渐接近零。若这些量长期不变，说明外部动力学需求没有减弱，不能只用 ACC 曲线宣称已发生知识饱和。
+
+### 14.7 推荐的六面板布局
+
+对指定 target client 和 source round，网页可采用以下结构；矩阵热图作为页面下方的可展开区域：
+
+```text
+┌───────────────────────────────────────────────────────┐
+│ Functional Map residual + mode correspondence        │
+├──────────────────────────┬────────────────────────────┤
+│ Mode Conflict Map        │ Candidate Funnel           │
+├──────────────────────────┼────────────────────────────┤
+│ Compatibility × Need     │ K -> K* residual effects   │
+├──────────────────────────┴────────────────────────────┤
+│ Round-wise Knowledge Flow                              │
+└───────────────────────────────────────────────────────┘
+```
+
+这套布局将“服务端能不能给”和“客户端需不需要”分开呈现，避免把冲突筛选和需求门控混成一个黑盒分数。
+
+### 14.8 数据契约、历史日志与触发策略
+
+当前 `latest.pt` 和 `personalized/latest.pt` 已足以支持单轮诊断：
+
+| 文件 | 可视化数据 |
+|---|---|
+| `koopman/candidates/latest.pt` | Functional Map、对齐算子、`conflict_rows`、候选包、来源矩阵 |
+| `koopman/candidates/server_rounds.csv` | 每轮对齐质量、冲突统计、候选统计 |
+| `koopman/client_<id>/personalized/latest.pt` | `candidate_rows`、$K$、$K^\star$、$\Delta K$、私有残差和条件数 |
+| `koopman/client_<id>/personalized/latest.json` | 单轮可读摘要与页面索引 |
+
+跨轮客户端图不能依赖会被覆盖的 `personalized/latest.pt`。应在每次成功计算 $K^\star$ 后追加 `personalized/history.csv`，至少包含 `source_round`、候选总数、正需求数、active 数、平均 compatibility/need/$\alpha$、相对 $\Delta K$、before/after 私有残差及 `candidate_prediction_residual_gain`。
+
+数值日志每轮写入，绘图按间隔触发：第一次有效 $K^\star$、每 `feddgn_kstar_visualize_every` 轮、最后一个可消费候选的轮次，或显式 `force=True`。不绘图时也必须照常保存 CSV 和 JSON；绘图耗时单独计入 `kstar_visualization_seconds`。
+
+### 14.9 解释边界
+
+本版本不绘制或不推断：
+
+- mode graph、Louvain 或社区结构；
+- 服务端全局 $K$ 或跨客户端两两算子距离图；
+- Koopman 复平面谱分布；
+- 外力幅度、方向、轨迹 tracking；
+- $K^\star$ 对任务 ACC 的因果提升。
+
+候选约束残差下降不等于私有预测残差下降，私有预测残差下降也不等于任务性能提升。服务端图应从 `latest.pt`/`server_rounds.csv` 解读，客户端图应从同一私有坐标中的 `personalized/latest.pt` 解读。当前实现的核心模块边界仍为：`candidate_pipeline.py` 负责 Functional Map、模式提取和冲突筛选；`personalized_koopman.py` 负责 need gate、闭式 $K^\star$ 与诊断；`client.py` 负责跨轮时序；`kstar_visualize.py` 负责已实现的客户端矩阵页面。
+
+## 15. 默认配置
 
 | 参数 | 默认值 | 含义 |
 |---|---:|---|
 | `n_clients` / `n_workers` | 10 / 10 | 客户端数与并行 worker 数 |
-| `n_rnds` / `n_eps` | 100 / 1 | 联邦轮数与每轮本地 epoch |
-| `aggregation` | `equal` | 任务参数、block-v、字典均使用等权聚合 |
-| `feddgn_hidden_dim` | 64 | A-DGN 隐藏维数 |
-| `feddgn_steps` | 16 | 共享权重 Euler 传播步数 |
+| `n_rnds` / `n_eps` | 100 / 1 | 通信轮数与本地 epoch 数 |
+| `local_only` | `true` | 任务模型保持客户端本地 |
+| `aggregation` | `equal` | 仅用于 ResKoop 字典 FedAvg |
+| `feddgn_hidden_dim` | 64 | A-DGN 隐状态维数 |
+| `feddgn_steps` | 16 | 共享权重 Euler 步数 |
 | `feddgn_step_size` | 0.1 | Euler 步长 |
 | `feddgn_gamma` | 0.1 | 反对称动力学阻尼 |
-| `feddgn_fed_optimizer` | `block_v` | 任务网络使用 O4 |
-| `feddgn_koopman_aux_dim` | 16 | 可学习观测维数，最终 $d_z=81$ |
+| `feddgn_koopman_aux_dim` | 16 | 可学习辅助观测维数 |
 | `feddgn_koopman_ridge` | $10^{-3}$ | EDMD 岭正则 |
-| `feddgn_koopman_outer_steps` | 1 | 每轮字典 outer step |
-| `feddgn_koopman_inner_steps` | 4 | 每个 outer step 的字典梯度步数 |
-| `feddgn_koopman_lr` | $10^{-3}$ | Koopman 字典 Adam 学习率 |
-| `feddgn_mode_graph_top_modes` | 16 | 每客户端上传候选模式上限 |
-| `feddgn_mode_graph_neighbors` | 5 | 每个模式保留的跨客户端邻居上限 |
+| `feddgn_koopman_max_snapshots` | 8192 | ResKoop 最大快照对数 |
+| `feddgn_candidate_top_modes` | 16 | 每来源客户端可靠模式上限 |
+| `feddgn_candidate_max_per_client` | 16 | 每目标客户端候选包上限 |
+| `feddgn_candidate_mode_residual_max` | 1.0 | 模式可靠性阈值 |
+| `feddgn_candidate_conflict_threshold` | 0.15 | 硬冲突 veto 阈值 |
+| `feddgn_candidate_compat_temperature` | 0.1 | compatibility 温度 |
+| `feddgn_candidate_eta` | 0.1 | $K^\star$ 软约束强度 |
+| `feddgn_candidate_need_snapshots` | 1024 | 客户端需求估计快照上限 |
 | `feddgn_functional_map_steps` | 8 | Functional Map 最大细化步数 |
-| `feddgn_mode_graph_resolution` | 1.0 | Louvain resolution |
-| `feddgn_mode_graph_save_every` | 10 | 模式图归档和可视化间隔 |
+| `feddgn_kstar_visualize_every` | 10 | 客户端热图间隔 |
 
-## 18. 复杂度与显存边界
+## 16. 复杂度
 
-设本地节点数为 $N_m$、A-DGN 步数为 $L=16$、观测维数为 $d_z=81$、保留快照数为 $B\le8192$。
+设客户端 $m$ 有 $N_m$ 个节点，A-DGN 步数 $L$，最大 ResKoop 快照数 $B$，观测维数 $d_z$，每客户端可靠模式上限 $q$。
 
-- A-DGN 的主要开销来自 16 次图卷积和为 Koopman 保存的 17 个隐藏状态；
-- EDMD 构造 Gram 矩阵约为 $O(Bd_z^2)$；
-- 本地 $K_m$ 求解和特征分解约为 $O(d_z^3)$；
-- 服务端每个 Functional Map 的小矩阵分解约为 $O(d_z^3)$；
-- 模式图最多有 $16M$ 个节点，完整相似度矩阵约为 $O((16M)^2d_z)$。
+- A-DGN rollout 的主要开销是 $L$ 次图卷积；
+- EDMD Gram 构造为 $O(Bd_z^2)$；
+- 本地算子求解和谱分解为 $O(d_z^3)$；
+- 每个 Functional Map 的小矩阵运算为 $O(d_z^3)$；
+- 目标条件冲突比较约为 $O(M^2q^2d_z)$；
+- 客户端 $K^\star$ 求解为 $O(d_z^3)$。
 
-显存峰值仍主要受 A-DGN 多步轨迹、图卷积中间量和多 worker 并发影响，而不是 9,360 参数的 ResKoop MLP。Koopman 分支通过 detach 阻止保留任务反向图，并用 `max_snapshots` 限制字典拟合样本数。
+默认 $d_z=81$、$q=16$。服务端成本来自多个小算子的谱分解和目标条件模式比较，不涉及对大图矩阵做稠密分解。
 
-## 19. 工程不变量与失败保护
+## 17. 工程不变量
 
-实现应始终满足以下不变量：
+实现应始终满足：
 
-1. `force_rms=0` 且 `force_intrinsic_ratio=0`；
-2. Koopman 轨迹对 A-DGN 无梯度；
-3. 全局 dictionary 只包含 `network.*` 参数，不包含 `operator` 或 `K`；
-4. 第 2 轮及以后，字典覆盖后的相对差应为数值 0；
-5. 字典接收后 Koopman Adam 必须重建；
-6. O4 只管理 A-DGN 的 block-v，不管理 Koopman Adam；
-7. 参考 $K_s$ 一经首轮选定，在本次运行中保持不变；
-8. 模式图边必须跨客户端，边权只由对齐空间余弦给出；
-9. 返回模式视图的 `task_feedback` 必须为 `false`；
-10. 所有 SVD/特征分解仅作用于小型 Koopman 空间，不作用于大图矩阵。
+1. `feddgn` 使用本地持久化任务模型与任务 Adam；
+2. 客户端上传中不含 task model、task optimizer 或 O4 block-v；
+3. Koopman 轨迹对 A-DGN 无梯度；
+4. 全局字典只包含可学习字典参数，不包含 $K_m$ 或 $K_m^\star$；
+5. 接收全局字典后重建 Koopman Adam；
+6. 服务端不平均 $K_m$，不构建全局 $K$；
+7. 所有服务端模式比较都在 Functional Map 对齐后的共享坐标中完成；
+8. 候选来源客户端不能等于目标客户端；
+9. 候选包与私有 $K,Z,Z^+$ 的来源轮次必须一致；
+10. $K_m^\star$ 在安装新一轮全局字典之前计算；
+11. $K_m^\star$ 不进入任务前向、任务损失、任务梯度或 ResKoop 拟合；
+12. 所有 SVD、特征分解和闭式求解只作用于小型 Koopman 空间。
 
-任何协议轮次不匹配、张量键或形状不一致、聚合权重非法、非有限字典参数或非有限模式都会显式抛错，避免生成表面完整但语义错误的结果。
+协议标识、轮次、目标身份、张量形状、聚合权重和有限性检查均采用显式失败策略，防止陈旧候选或坐标错配被静默使用。
 
-## 20. 2026-09-15 两轮联调验证
+## 18. 方法总结
 
-以下是工程 smoke test，不是正式精度结论。设置为 Cora、10 客户端、10 workers、2 轮、每轮 1 epoch，并关闭绘图以专门验证通信生命周期。
-
-验证结果：
-
-- O4 checkpoint：`optimizer_state_mode=fedadamw_v_block`；
-- `global_v_step=2`，任务网络共有 7 个 block-v 标量；
-- 全局字典来源轮次为 2，含 6 个张量、9,360 个参数；
-- 全局字典键全部为 `network.*`，不含 $K$ 或 operator；
-- 第 2 轮 10/10 客户端均记录 `dictionary_received=1`；
-- 第 2 轮 10/10 客户端均记录 `optimizer_reset=1`；
-- 覆盖前相对差范围约为 0.0325 到 0.0352，证明客户端字典在本地训练后确实分化；
-- 覆盖后相对差全部为 0，证明全局字典确实安装成功；
-- Functional Map 模式图仍正常生成，共 160 个节点、567 条边、10 个社区；
-- 模式图继续记录 `task_feedback=false`。
-
-该 smoke 的聚类质量为：Silhouette 约 0.077、簇间/簇内距离比约 1.159、modularity 约 0.649。它说明稀疏图社区较明显，但完整对齐几何中的分离度仍然偏弱，正好证明不能只凭“发现了 10 个社区”判断模式聚类已经可靠。
-
-两轮 paired test ACC 均值约为 0.652，仅用于证明训练流程跑通；轮数太少，不能与 100 轮正式实验比较，也不能据此判断 dictionary FedAvg 对任务精度的作用。
-
-## 21. 必做消融与判定标准
-
-下一阶段至少应比较：
-
-| 变体 | 字典 | Functional Map | 目的 |
-|---|---|---|---|
-| A | 客户端私有 | 开启 | 原始坐标自由度下的基线 |
-| B | FedAvg + 接收后 reset Adam | 开启 | 当前 V1.0 |
-| C | FedAvg + 接收后 reset Adam | 关闭或恒等映射 | 判断共享字典是否已足以对齐 |
-| D | FedAvg + 保留旧 Adam | 开启 | 验证参数点—优化器状态错配的影响 |
-
-建议同时报告：
-
-- 每客户端最佳验证轮对应的测试 ACC，而不是最后一轮 ACC；
-- Functional Map 相对恒等映射带来的残差改进；
-- $R_C$ 和 $R_U$ 的均值、最大值与轮次曲线；
-- 字典覆盖前相对距离；
-- Silhouette、距离比、similarity gap、modularity 和 conductance；
-- 社区数、社区大小分布与客户端覆盖度；
-- 通信量和每轮 wall time。
-
-若 dictionary FedAvg 有效，合理预期是：覆盖前距离稳定非零、覆盖后为 0；在不破坏本地 $K_m$ 拟合的情况下，Functional Map 更接近恒等映射或交换残差下降；完整空间的 Silhouette、距离比和 similarity gap 改善。不能只以社区数量增加作为成功标准。
-
-## 22. 当前限制与下一步
-
-### 22.1 当前限制
-
-1. 模式分支被动，尚不能直接提高任务 ACC；
-2. 神经字典参数即使做 FedAvg，仍可能存在隐藏单元排列等参数对称性，参数平均不等于严格的函数平均；
-3. 参考 $K_s$ 固定在首轮最优客户端，长期训练后可能逐渐过时；
-4. $K_m$ 来自任务隐藏轨迹，它描述的是当前模型传播过程，不自动等价于可迁移、因果有效的任务知识；
-5. 两轮 smoke 中 Silhouette 仍低，100 轮行为尚需正式验证；
-6. 模式库当前在观测参考空间中构建，尚未设计安全、可解释的状态空间回注机制。
-
-### 22.2 推荐的后续顺序
-
-1. 先完成 100 轮、11 数据集的 V1.0 稳定性和消融，确认共享字典是否真实改善 K 空间可比性；
-2. 检查 Functional Map 是否随训练逐渐接近恒等映射，以及固定参考是否老化；
-3. 只在模式质量指标通过门槛后，设计从全局模式库到本地状态空间的受控映射；
-4. 最初反馈应使用可关闭、可限幅、可测量的弱正则或门控残差项；
-5. 最终再考虑启用外力端口，并与无反馈 V1.0 做严格因果消融。
-
-不建议在当前阶段直接平均 $K_m$，也不建议仅凭局部轨迹拟合残差低就宣称获得了可迁移动力学。真正的判据应是：跨客户端方向保持、对齐残差下降、社区几何分离改善，以及后续受控反馈对最佳验证轮 paired test 指标产生可复现增益。
-
-## 23. 客户端与服务端伪代码
-
-### 23.1 客户端
-
-```text
-ClientRound(m, r):
-    restore private checkpoint of logical client m
-
-    theta_m <- receive global task parameters
-    task_optimizer <- O4(global block-v, fresh first moment)
-
-    if r > 1:
-        validate dictionary protocol and source_round == r - 1
-        omega_m <- receive global dictionary
-        koopman_optimizer <- fresh Adam
-
-    train A-DGN for local epochs with external force disabled
-
-    T_m <- detached 16-step A-DGN trajectory
-    update omega_m using spectral residual loss
-    K_m <- ridge_EDMD(Psi_omega(T_m))
-    modes_m <- eigendecompose_and_select(K_m)
-
-    upload theta_m, block_v_m, omega_m, K_m, modes_m
-    save private checkpoint
-```
-
-### 23.2 服务端
-
-```text
-ServerRound(r):
-    theta_g <- weighted_average({theta_m})
-    block_v_g <- weighted_average({block_v_m})
-    omega_g <- weighted_average({omega_m})
-
-    do not average {K_m}
-
-    if first graph round:
-        choose fixed reference K_s by minimum spectral residual
-
-    for each client m:
-        C_m <- solve min ||C_m K_m - K_s C_m||, C_m^H C_m = I
-        aligned_modes_m <- C_m modes_m
-
-    G_mode <- cross-client balanced kNN(aligned modes)
-    communities <- Louvain(G_mode)
-    quality <- full-geometry metrics + sparse-graph metrics
-    global_bank <- phase_aligned_community_representatives(communities)
-
-    broadcast theta_g, block_v_g, omega_g
-    return passive personalized mode views
-```
-
-## 24. 小结
-
-FedDGN V1.0 的核心不是把所有动力学量都平均，而是建立清晰的职责边界：
+FedDGN V1.0 将联邦 Koopman 知识迁移拆分为三个可检验的问题：
 
 $$
 \boxed{
 \begin{aligned}
-&\text{A-DGN 参数：FedAvg，任务优化器用 O4 block-v；}\\
-&\text{ResKoop 字典：独立 FedAvg，接收后重置 Adam；}\\
-&\text{本地 }K_m\text{：解析计算、上传比较，但不平均；}\\
-&\text{跨客户端模式：Functional Map 对齐后再建图；}\\
-&\text{模式反馈：当前仅保存和可视化，不进入任务动力学。}
+&\text{可比较性：Functional Map 将局部算子映射到共享坐标；}\\
+&\text{安全性：服务端拒绝重叠方向上的不相容动力学；}\\
+&\text{必要性：客户端仅吸收能够一阶修正私有残差的候选。}
 \end{aligned}
 }
 $$
 
-共享字典减少坐标漂移，Functional Map 处理剩余坐标偏差，本地 $K_m$ 保留客户端特有动力学，模式图负责发现跨客户端结构。这一版本首先把“可比较、可审计、可消融”的分析基础搭好，再为后续真正的个性化动力学知识流提供可靠入口。
+共享 ResKoop 字典减小观测坐标漂移，本地 $K_m$ 保留客户端特有动力学，冲突筛选替代无条件的相似度聚类，闭式 soft operator fitting 则生成以本地算子为锚的 $K_m^\star$。当前版本把 $K_m^\star$ 作为被动、可审计的动力学分析对象；其与任务网络之间不存在计算路径。
