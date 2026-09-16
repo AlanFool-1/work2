@@ -59,9 +59,8 @@ class Client(LocalClient):
         self._round_result.update(optimizer_state_diagnostics(self.optimizer))
         self._round_result.update(self._global_optimizer_diagnostics)
 
-    def transfer_to_server(self):
-        super().transfer_to_server()
-        payload = dict(self.sd[self.client_id])
+    def _upload_payload(self):
+        payload = super()._upload_payload()
         block_v = {}
         if self._mode() == 'block_v':
             block_v = export_block_second_moment(
@@ -69,7 +68,7 @@ class Client(LocalClient):
             )
         payload['main_v_blocks'] = block_v
         payload['upload_bytes'] += 8 * len(block_v)
-        self.sd[self.client_id] = payload
+        return payload
 
 
 __all__ = ['Client']

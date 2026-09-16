@@ -38,6 +38,7 @@ plugins:
   - search
 
 markdown_extensions:
+  - admonition
   - attr_list
   - md_in_html
   - pymdownx.arithmatex:
@@ -77,13 +78,26 @@ nav:
       - Method V0.2:
           - 算法与实现: methodv02.md
           - 联邦验证与本地诊断: experiments/methodv02.md
+      - Method V0.3:
+          - 算法设计: methodv03.md
+          - 实验分析: experiments/methodv03.md
+      - Method V0.4:
+          - 算法设计: methodv04.md
+          - 实验分析: experiments/methodv04.md
+      - Method V0.5:
+          - 思想设计: methodv05.md
+          - 实现步骤: methodv05-implementation.md
+      - Method V1.0:
+          - 算法设计: methodv10.md
   - 参考论文:
       - 论文总览: references/index.md
       - DeepKoopman: references/deepkoopman.md
       - Balanced Neural ODEs: references/balanced-neural-odes.md
       - DMD-GNN: references/dmd-gnn.md
-      - Compositional Koopman: references/compositional-koopman.md
       - Micro-Macro Coupled Koopman: references/micro-macro-coupled-koopman.md
       - Course Correcting Koopman: references/course-correcting.md
       - MetaKoopman: references/metakoopman.md
+      - KoopmanGraph v0.15.0: references/koopmangraph.md
+      - PH-DGN: references/ph-dgn.md
+      - ResKoopNet: references/reskoopnet.md
   - 维护说明: guide/authoring.md

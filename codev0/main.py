@@ -27,10 +27,10 @@ DATASET_META = {
 }
 
 MODEL_MODULES = {
+    'feddgn': 'models.feddgn',
     'feddgn_local': 'models.feddgn_local',
     'feddgn_avg': 'models.feddgn_avg',
     'v04': 'models.v04',
-    'v11': 'models.v11',
     'local': 'models.local',
     'fedavg': 'models.fedavg',
     'fedpub': 'models.fedpub',
@@ -38,8 +38,8 @@ MODEL_MODULES = {
 }
 
 V04_MODELS = {'v04'}
-V11_MODELS = {'v11'}
-FEDDGN_LOCAL_MODELS = {'feddgn_local'}
+FEDDGN_KOOPMAN_MODELS = {'feddgn'}
+FEDDGN_LOCAL_MODELS = {'feddgn_local'} | FEDDGN_KOOPMAN_MODELS
 FEDDGN_AVG_MODELS = {'feddgn_avg'}
 FEDDGN_MODELS = FEDDGN_LOCAL_MODELS | FEDDGN_AVG_MODELS
 REFERENCE_MODELS = {'local', 'fedavg', 'fedpub', 'fedaux'}
@@ -116,12 +116,12 @@ def set_config(args):
             args.optimizer_state_mode = 'local_persistent_adam'
             if not args.local_only:
                 raise ValueError(
-                    'feddgn_local requires local_only=true.'
+                    f'{args.model} requires local_only=true.'
                 )
         else:
             if args.local_only:
                 raise ValueError(
-                    'feddgn_avg is the FedAvg variant; omit --local-only.'
+                    f'{args.model} is a FedAvg variant; omit --local-only.'
                 )
             optimizer_modes = {
                 'persistent_adam': 'fedavg_model_persistent_adam',
@@ -147,13 +147,32 @@ def set_config(args):
             raise ValueError('FedDGN classifier dropout must lie in [0, 1).')
         if not 0.0 <= args.feddgn_label_smoothing < 1.0:
             raise ValueError('FedDGN label smoothing must lie in [0, 1).')
-    elif args.model in V11_MODELS:
-        # Local-only backbone: the shared FedAdamW-v protocol does not apply.
-        # Method1LocalConfig.validate() owns the remaining field checks.
-        args.local_optimizer = 'adamw'
-        args.optimizer_state_mode = 'local_only'
-        if args.v11_operator_rank > args.v11_hidden_dim + args.v11_aux_dim:
-            raise ValueError('operator_rank cannot exceed the observable width.')
+        if args.model in FEDDGN_KOOPMAN_MODELS:
+            koopman_dimensions = (
+                args.feddgn_koopman_hidden_dim,
+                args.feddgn_koopman_hidden_layers,
+                args.feddgn_koopman_max_snapshots,
+                args.feddgn_koopman_batch_size,
+                args.feddgn_koopman_save_every,
+            )
+            if min(koopman_dimensions) <= 0:
+                raise ValueError('FedDGN ResKoopNet dimensions must be positive.')
+            if args.feddgn_koopman_aux_dim < 0:
+                raise ValueError('FedDGN Koopman aux_dim must be non-negative.')
+            if min(
+                args.feddgn_koopman_outer_steps,
+                args.feddgn_koopman_inner_steps,
+            ) < 0:
+                raise ValueError('FedDGN Koopman optimization steps are invalid.')
+            if args.feddgn_koopman_ridge < 0:
+                raise ValueError('FedDGN Koopman ridge must be non-negative.')
+            if args.feddgn_koopman_lr <= 0:
+                raise ValueError('FedDGN Koopman learning rate must be positive.')
+            if min(
+                args.feddgn_koopman_weight_decay,
+                args.feddgn_koopman_grad_clip,
+            ) < 0:
+                raise ValueError('FedDGN Koopman regularizers must be non-negative.')
     elif args.model in V04_MODELS:
         # O4 block-v is the default V0.4 optimizer protocol; the plain variants
         # exist only to locate how much of it the federated path needs.
@@ -192,10 +211,9 @@ def set_config(args):
             raise ValueError('lie_warmup_rounds must be non-negative.')
         if args.lie_ramp_end_round <= args.lie_warmup_rounds:
             raise ValueError('Lie ramp must end after warmup.')
-        if args.lie_weight_max < 0 or args.lie_speed_weight != 0:
+        if args.lie_weight_max < 0:
             raise ValueError(
-                'V0.4 Gate 0-4 require non-negative Lie direction weight '
-                'and lie_speed_weight=0.'
+                'V0.4 Gate 0-4 require a non-negative Lie direction weight.'
             )
         if min(
             args.integration_time,

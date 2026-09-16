@@ -125,8 +125,25 @@ class ParentProcess:
     def done(self):
         if self.children_joined:
             return
+        # This method also runs through atexit when a worker/server exception
+        # aborts a round. Signal every listener before joining; otherwise
+        # healthy workers remain blocked on queue.get() forever and turn a
+        # reported training error into a hung tmux session.
+        try:
+            self.sd['is_done'] = True
+        except Exception:
+            pass
+        for queue in self.queues.values():
+            try:
+                queue.put(None)
+            except Exception:
+                pass
         for process in self.processes:
-            process.join()
+            process.join(timeout=10.0)
+        for process in self.processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5.0)
         self.children_joined = True
 
 

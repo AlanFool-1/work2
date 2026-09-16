@@ -53,8 +53,6 @@ class Client(ClientModule):
         for batch in self.loader.pa_loader:
             self._active_batch = batch.cuda(self.gpu_id)
             break
-        if self._active_batch is None:
-            raise RuntimeError('FedDGN requires one non-empty client graph.')
 
     def init_state(self):
         set_state_dict(self.model, self._initial_model, self.gpu_id)
@@ -110,8 +108,6 @@ class Client(ClientModule):
         self.transfer_to_server()
 
     def _batch(self):
-        if self._active_batch is None:
-            raise RuntimeError('Client graph has not been loaded.')
         return self._active_batch
 
     @torch.no_grad()
@@ -166,17 +162,23 @@ class Client(ClientModule):
             'elapsed_seconds': float(time.time() - started),
         }
 
-    def transfer_to_server(self):
-        # Upload is intentionally unchanged: the server still sees all local
-        # models and executes its normal aggregation path every round.
+    def _upload_payload(self):
+        """Build one complete message before publishing it to the server."""
+
         weights = get_state_dict(self.model)
-        self.sd[self.client_id] = {
+        return {
             'client_id': int(self.client_id),
             'model': weights,
             'train_size': int(self._batch().train_mask.sum().item()),
             'upload_bytes': int(sum(value.nbytes for value in weights.values())),
             **self._round_result,
         }
+
+    def transfer_to_server(self):
+        # A Manager.dict assignment is the server's completion signal. Build
+        # the entire payload first so subclasses can extend it without ever
+        # exposing a partially populated message.
+        self.sd[self.client_id] = self._upload_payload()
 
 
 __all__ = ['Client']
